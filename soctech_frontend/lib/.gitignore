@@ -1,0 +1,14 @@
+# Ignorar carpetas de compilación de .NET
+bin/
+obj/
+.vscode/
+
+# Ignorar carpetas de compilación de Flutter
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+
+# Ignorar configuraciones locales
+appsettings.Development.json
