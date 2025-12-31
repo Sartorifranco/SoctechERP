@@ -15,6 +15,7 @@ namespace SoctechERP.API.Data
         public DbSet<StockMovement> StockMovements { get; set; } // <--- NUEVO
         public DbSet<Project> Projects { get; set; }
         public DbSet<Provider> Providers { get; set; }
+        public DbSet<ProjectPhase> ProjectPhases { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Company>().HasIndex(c => c.Cuit).IsUnique();

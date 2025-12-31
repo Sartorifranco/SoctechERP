@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:fl_chart/fl_chart.dart'; // <--- LA NUEVA LIBRERÍA
+import 'package:fl_chart/fl_chart.dart'; 
+import 'project_phases_screen.dart'; // <--- IMPORTANTE: Asegúrate de tener este archivo creado
 
 class ProjectDetailScreen extends StatefulWidget {
   final Map<String, dynamic> project;
@@ -109,7 +110,22 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final double progress = budget > 0 ? (totalSpent / budget) : 0;
     
     return Scaffold(
-      appBar: AppBar(title: Text(widget.project['name'])),
+      appBar: AppBar(
+        title: Text(widget.project['name']),
+        actions: [
+          // BOTÓN PARA GESTIONAR FASES (Nivel Oracle)
+          IconButton(
+            icon: const Icon(Icons.layers), 
+            tooltip: "Gestionar Fases",
+            onPressed: () {
+               Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ProjectPhasesScreen(project: widget.project)),
+              );
+            },
+          )
+        ],
+      ),
       body: SingleChildScrollView(
         child: Column(
           children: [

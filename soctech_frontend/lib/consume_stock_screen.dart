@@ -11,16 +11,18 @@ class ConsumeStockScreen extends StatefulWidget {
 
 class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
   final _quantityController = TextEditingController();
-  final _descriptionController = TextEditingController(); // Para aclarar "Para baño", "Pared sur", etc.
+  final _descriptionController = TextEditingController();
   bool isSaving = false;
   
-  // Listas para los Dropdowns
+  // Listas de Datos
   List<dynamic> products = [];
   List<dynamic> projects = [];
+  List<dynamic> projectPhases = []; // <--- Lista para las fases
 
   // Selecciones
   String? selectedProductId;
   String? selectedProjectId;
+  String? selectedPhaseId; // <--- Fase seleccionada
   
   // Info auxiliar
   double currentStock = 0;
@@ -28,27 +30,49 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
   @override
   void initState() {
     super.initState();
-    loadData(); 
+    loadInitialData(); 
   }
 
-  Future<void> loadData() async {
+  Future<void> loadInitialData() async {
     try {
-      // 1. Cargar Productos
       final resProd = await http.get(Uri.parse('http://localhost:5064/api/Products'));
-      // 2. Cargar Obras (Proyectos)
       final resProj = await http.get(Uri.parse('http://localhost:5064/api/Projects'));
 
       if (resProd.statusCode == 200 && resProj.statusCode == 200) {
         setState(() {
           products = json.decode(resProd.body);
-          
-          // Filtramos solo las obras activas para no mandar material a obras terminadas
           var allProjects = json.decode(resProj.body);
+          // Filtramos solo activas
           projects = allProjects.where((p) => p['isActive'] == true || p['status'] != 'Finished').toList();
         });
       }
     } catch (e) {
       print("Error cargando datos: $e");
+    }
+  }
+
+  // Cuando selecciona obra, buscamos sus fases
+  Future<void> onProjectSelected(String? projectId) async {
+    if (projectId == null) return;
+
+    setState(() {
+      selectedProjectId = projectId;
+      selectedPhaseId = null; // Reseteamos fase anterior
+      projectPhases = []; // Limpiamos lista
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse('http://localhost:5064/api/ProjectPhases?projectId=$projectId')
+      );
+      
+      if (response.statusCode == 200) {
+        setState(() {
+          projectPhases = json.decode(response.body);
+        });
+      }
+    } catch (e) {
+      print("Error cargando fases: $e");
     }
   }
 
@@ -62,12 +86,12 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
   }
 
   Future<void> saveExit() async {
+    // Validación más estricta: Ahora pedimos Fase si la obra tiene fases
     if (selectedProductId == null || selectedProjectId == null || _quantityController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Producto, Obra y Cantidad son obligatorios")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Completa los campos obligatorios")));
       return;
     }
 
-    // Validar Stock negativo
     double quantity = double.tryParse(_quantityController.text) ?? 0;
     if (quantity > currentStock) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡No tienes suficiente stock!")));
@@ -76,11 +100,9 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
 
     setState(() => isSaving = true);
 
-    // IDs FIJOS (Por ahora)
     const String companyId = "3fa85f64-5717-4562-b3fc-2c963f66afa6"; 
     const String branchId = "9c9d8c46-970e-4647-83e9-8c084f771982"; 
 
-    // Obtenemos el costo actual del producto para registrar cuánto dinero se va
     final prod = products.firstWhere((p) => p['id'] == selectedProductId);
     double unitCost = (prod['costPrice'] ?? 0).toDouble();
 
@@ -88,9 +110,10 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
       "companyId": companyId,
       "branchId": branchId,
       "productId": selectedProductId,
-      "projectId": selectedProjectId, // <--- AQUÍ VINCULAMOS LA OBRA
-      "movementType": "CONSUMPTION",  // Tipo Salida
-      "quantity": quantity * -1,      // Negativo porque sale
+      "projectId": selectedProjectId,
+      "projectPhaseId": selectedPhaseId, // <--- Enviamos la fase seleccionada (puede ser null)
+      "movementType": "CONSUMPTION",
+      "quantity": quantity * -1,
       "unitCost": unitCost,
       "date": DateTime.now().toIso8601String(),
       "reference": _descriptionController.text.isEmpty ? "Salida a Obra" : _descriptionController.text
@@ -105,7 +128,7 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
 
       if (response.statusCode == 201) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Salida registrada correctamente")));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Salida imputada correctamente")));
           Navigator.pop(context, true); 
         }
       } else {
@@ -121,14 +144,15 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Enviar a Obra"),
+        title: const Text("Salida de Materiales"),
         backgroundColor: Colors.redAccent,
         foregroundColor: Colors.white,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView( // Por si el teclado tapa los campos
+        child: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // --- 1. SELECCIONAR OBRA ---
               DropdownButtonFormField<String>(
@@ -137,20 +161,53 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.apartment),
                 ),
+                value: selectedProjectId,
                 items: projects.map<DropdownMenuItem<String>>((proj) {
                   return DropdownMenuItem<String>(
                     value: proj['id'],
-                    child: Text(proj['name']), // Muestra el nombre real de la obra
+                    child: Text(proj['name']),
                   );
                 }).toList(),
-                onChanged: (val) => setState(() => selectedProjectId = val),
+                onChanged: onProjectSelected, // Al cambiar, carga las fases
               ),
               const SizedBox(height: 16),
 
-              // --- 2. SELECCIONAR PRODUCTO ---
+              // --- 2. SELECCIONAR FASE (Dinámico) ---
+              // Solo se muestra si ya elegiste obra
+              if (selectedProjectId != null) 
+                AnimatedOpacity(
+                  opacity: 1.0,
+                  duration: const Duration(milliseconds: 500),
+                  child: DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: "Fase / Etapa (Opcional)",
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.layers),
+                      helperText: "Ej: Cimientos, Estructura..."
+                    ),
+                    value: selectedPhaseId,
+                    items: projectPhases.isEmpty 
+                      ? [] 
+                      : projectPhases.map<DropdownMenuItem<String>>((phase) {
+                          return DropdownMenuItem<String>(
+                            value: phase['id'],
+                            child: Text(phase['name']),
+                          );
+                        }).toList(),
+                    onChanged: (val) => setState(() => selectedPhaseId = val),
+                    // Si no hay fases cargadas, deshabilitamos el campo visualmente
+                    disabledHint: const Text("Esta obra no tiene fases definidas"),
+                  ),
+                ),
+              
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+
+              // --- 3. PRODUCTO Y CANTIDAD ---
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(
-                  labelText: "Producto a Enviar",
+                  labelText: "Producto",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.inventory),
                 ),
@@ -162,29 +219,26 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
                 }).toList(),
                 onChanged: onProductSelected,
               ),
-              const SizedBox(height: 10),
               
               if (selectedProductId != null)
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  color: Colors.orange.shade50,
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber, color: Colors.orange),
-                      const SizedBox(width: 10),
-                      Text("Disponible: $currentStock unidades"),
+                      const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                      const SizedBox(width: 5),
+                      Text("Stock en pañol: $currentStock", style: const TextStyle(color: Colors.grey)),
                     ],
                   ),
                 ),
 
               const SizedBox(height: 16),
 
-              // --- 3. CANTIDAD Y REFERENCIA ---
               TextField(
                 controller: _quantityController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: "Cantidad a Enviar",
+                  labelText: "Cantidad",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.outbox),
                 ),
@@ -194,15 +248,13 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
               TextField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
-                  labelText: "Detalle (Opcional)",
-                  hintText: "Ej: Para baño planta alta",
+                  labelText: "Nota (Opcional)",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.description),
                 ),
               ),
               const SizedBox(height: 24),
 
-              // --- BOTÓN CONFIRMAR ---
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -211,7 +263,7 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
                   icon: isSaving 
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) 
                     : const Icon(Icons.send),
-                  label: const Text("REGISTRAR SALIDA"),
+                  label: const Text("CONFIRMAR SALIDA"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.redAccent, 
                     foregroundColor: Colors.white,
