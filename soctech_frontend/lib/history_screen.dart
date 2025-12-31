@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart'; // Necesitas agregar intl a pubspec.yaml si quieres formatear fechas bonitas, si no, usamos split
+import 'package:intl/intl.dart'; 
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -54,26 +54,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     final mov = movements[index];
                     final bool isInput = mov['quantity'] > 0;
                     
-                    // Formateo simple de fecha (YYYY-MM-DD)
-                    final String date = mov['date'].toString().split('T')[0];
-                    final String time = mov['date'].toString().split('T')[1].split('.')[0];
+                    // Formateo simple de fecha
+                    final DateTime dt = DateTime.parse(mov['date']);
+                    final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(dt);
 
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       child: ListTile(
-                        // Icono: Flecha Arriba (Verde) o Abajo (Rojo)
+                        // --- CORRECCIÓN AQUÍ: Icons en vez de Colors ---
                         leading: CircleAvatar(
                           backgroundColor: isInput ? Colors.green.shade100 : Colors.red.shade100,
                           child: Icon(
-                            isInput ? Colors.arrow_downward : Colors.arrow_upward,
+                            isInput ? Icons.arrow_downward : Icons.arrow_upward,
                             color: isInput ? Colors.green : Colors.red,
                           ),
                         ),
+                        // -----------------------------------------------
                         title: Text(
                           mov['reference'] ?? "Sin referencia",
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        subtitle: Text("$date $time"),
+                        subtitle: Text(formattedDate),
                         trailing: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -86,8 +87,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 fontSize: 16
                               ),
                             ),
-                            // Mostrar costo total del movimiento si quieres (Opcional)
-                            // Text("\$${(mov['quantity'] * mov['unitCost']).toStringAsFixed(2)}", style: TextStyle(fontSize: 12)),
                           ],
                         ),
                       ),

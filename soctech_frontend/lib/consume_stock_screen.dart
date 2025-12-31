@@ -10,18 +10,20 @@ class ConsumeStockScreen extends StatefulWidget {
 }
 
 class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
-  // Controladores y Variables
   final _quantityController = TextEditingController();
+  final _descriptionController = TextEditingController(); // Para aclarar "Para baño", "Pared sur", etc.
   bool isSaving = false;
   
-  // Listas para los menús desplegables
+  // Listas para los Dropdowns
   List<dynamic> products = [];
   List<dynamic> projects = [];
 
-  // Selecciones del usuario
+  // Selecciones
   String? selectedProductId;
   String? selectedProjectId;
-  double? selectedProductCost; 
+  
+  // Info auxiliar
+  double currentStock = 0;
 
   @override
   void initState() {
@@ -31,13 +33,18 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
 
   Future<void> loadData() async {
     try {
-      final prodResp = await http.get(Uri.parse('http://localhost:5064/api/Products'));
-      final projResp = await http.get(Uri.parse('http://localhost:5064/api/Projects'));
+      // 1. Cargar Productos
+      final resProd = await http.get(Uri.parse('http://localhost:5064/api/Products'));
+      // 2. Cargar Obras (Proyectos)
+      final resProj = await http.get(Uri.parse('http://localhost:5064/api/Projects'));
 
-      if (prodResp.statusCode == 200 && projResp.statusCode == 200) {
+      if (resProd.statusCode == 200 && resProj.statusCode == 200) {
         setState(() {
-          products = json.decode(prodResp.body);
-          projects = json.decode(projResp.body);
+          products = json.decode(resProd.body);
+          
+          // Filtramos solo las obras activas para no mandar material a obras terminadas
+          var allProjects = json.decode(resProj.body);
+          projects = allProjects.where((p) => p['isActive'] == true || p['status'] != 'Finished').toList();
         });
       }
     } catch (e) {
@@ -45,34 +52,48 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
     }
   }
 
-  Future<void> saveMovement() async {
+  void onProductSelected(String? id) {
+    if (id == null) return;
+    final prod = products.firstWhere((p) => p['id'] == id);
+    setState(() {
+      selectedProductId = id;
+      currentStock = (prod['stock'] ?? 0).toDouble();
+    });
+  }
+
+  Future<void> saveExit() async {
     if (selectedProductId == null || selectedProjectId == null || _quantityController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Completa todos los campos")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Producto, Obra y Cantidad son obligatorios")));
+      return;
+    }
+
+    // Validar Stock negativo
+    double quantity = double.tryParse(_quantityController.text) ?? 0;
+    if (quantity > currentStock) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡No tienes suficiente stock!")));
       return;
     }
 
     setState(() => isSaving = true);
 
-    // IDs DE EMPRESA
+    // IDs FIJOS (Por ahora)
     const String companyId = "3fa85f64-5717-4562-b3fc-2c963f66afa6"; 
     const String branchId = "9c9d8c46-970e-4647-83e9-8c084f771982"; 
 
-    // Convertir cantidad a negativo
-    double quantity = double.tryParse(_quantityController.text) ?? 0;
-    if (quantity > 0) quantity = quantity * -1;
+    // Obtenemos el costo actual del producto para registrar cuánto dinero se va
+    final prod = products.firstWhere((p) => p['id'] == selectedProductId);
+    double unitCost = (prod['costPrice'] ?? 0).toDouble();
 
     final movement = {
       "companyId": companyId,
       "branchId": branchId,
       "productId": selectedProductId,
-      "projectId": selectedProjectId,
-      "movementType": "CONSUMPTION",
-      "quantity": quantity,
-      "unitCost": selectedProductCost ?? 0, 
+      "projectId": selectedProjectId, // <--- AQUÍ VINCULAMOS LA OBRA
+      "movementType": "CONSUMPTION",  // Tipo Salida
+      "quantity": quantity * -1,      // Negativo porque sale
+      "unitCost": unitCost,
       "date": DateTime.now().toIso8601String(),
-      "reference": "Consumo desde App Móvil"
+      "reference": _descriptionController.text.isEmpty ? "Salida a Obra" : _descriptionController.text
     };
 
     try {
@@ -83,108 +104,122 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
       );
 
       if (response.statusCode == 201) {
-        if (mounted) Navigator.pop(context, true); 
-      } else {
-        setState(() => isSaving = false);
         if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error ${response.statusCode}: ${response.body}")),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Salida registrada correctamente")));
+          Navigator.pop(context, true); 
         }
+      } else {
+        throw Exception("Error ${response.statusCode}");
       }
     } catch (e) {
       setState(() => isSaving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Registrar Salida a Obra")),
+      appBar: AppBar(
+        title: const Text("Enviar a Obra"),
+        backgroundColor: Colors.redAccent,
+        foregroundColor: Colors.white,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // --- DROPDOWN PRODUCTOS ---
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: "Seleccionar Producto",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.inventory),
+        child: SingleChildScrollView( // Por si el teclado tapa los campos
+          child: Column(
+            children: [
+              // --- 1. SELECCIONAR OBRA ---
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: "Destino (Obra)",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.apartment),
+                ),
+                items: projects.map<DropdownMenuItem<String>>((proj) {
+                  return DropdownMenuItem<String>(
+                    value: proj['id'],
+                    child: Text(proj['name']), // Muestra el nombre real de la obra
+                  );
+                }).toList(),
+                onChanged: (val) => setState(() => selectedProjectId = val),
               ),
-              items: products.map<DropdownMenuItem<String>>((prod) {
-                return DropdownMenuItem<String>(
-                  value: prod['id'],
-                  // --- AQUÍ ESTÁ EL FIX ROBUSTO ---
-                  onTap: () {
-                    // 1. Obtenemos el valor crudo (puede ser int o double)
-                    final dynamic rawPrice = prod['costPrice'];
-                    
-                    // 2. Lo convertimos a num (que acepta ambos) y luego a double
-                    if (rawPrice != null) {
-                      selectedProductCost = (rawPrice as num).toDouble();
-                    } else {
-                      selectedProductCost = 0.0;
-                    }
-                  },
-                  // --------------------------------
-                  child: Text(prod['name']),
-                );
-              }).toList(),
-              onChanged: (value) => setState(() => selectedProductId = value),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // --- DROPDOWN OBRAS ---
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: "Destino (Obra)",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.apartment),
+              // --- 2. SELECCIONAR PRODUCTO ---
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: "Producto a Enviar",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.inventory),
+                ),
+                items: products.map<DropdownMenuItem<String>>((prod) {
+                  return DropdownMenuItem<String>(
+                    value: prod['id'],
+                    child: Text(prod['name']),
+                  );
+                }).toList(),
+                onChanged: onProductSelected,
               ),
-              items: projects.map<DropdownMenuItem<String>>((proj) {
-                return DropdownMenuItem<String>(
-                  value: proj['id'],
-                  child: Text(proj['name']),
-                );
-              }).toList(),
-              onChanged: (value) => setState(() => selectedProjectId = value),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 10),
+              
+              if (selectedProductId != null)
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  color: Colors.orange.shade50,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber, color: Colors.orange),
+                      const SizedBox(width: 10),
+                      Text("Disponible: $currentStock unidades"),
+                    ],
+                  ),
+                ),
 
-            // --- CANTIDAD ---
-            TextField(
-              controller: _quantityController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Cantidad a sacar",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.onetwothree),
-                suffixText: "unidades"
-              ),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
-            // --- BOTÓN GUARDAR ---
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: isSaving ? null : saveMovement,
-                icon: isSaving 
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) 
-                  : const Icon(Icons.send),
-                label: const Text("REGISTRAR SALIDA"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent, 
-                  foregroundColor: Colors.white,
+              // --- 3. CANTIDAD Y REFERENCIA ---
+              TextField(
+                controller: _quantityController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: "Cantidad a Enviar",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.outbox),
                 ),
               ),
-            )
-          ],
+              const SizedBox(height: 16),
+
+              TextField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: "Detalle (Opcional)",
+                  hintText: "Ej: Para baño planta alta",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.description),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // --- BOTÓN CONFIRMAR ---
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: isSaving ? null : saveExit,
+                  icon: isSaving 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) 
+                    : const Icon(Icons.send),
+                  label: const Text("REGISTRAR SALIDA"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent, 
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              )
+            ],
+          ),
         ),
       ),
     );

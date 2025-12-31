@@ -1,10 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
+// --- IMPORTS DE TUS PANTALLAS ---
 import 'create_project_screen.dart'; 
 import 'consume_stock_screen.dart';
 import 'purchase_stock_screen.dart';
 import 'dashboard_screen.dart';
+import 'history_screen.dart';
+import 'projects_screen.dart'; // <--- ¡AQUÍ ESTÁ LA SOLUCIÓN!
+// import 'products_screen.dart'; // <--- Descomenta esto si ya tienes el archivo products_screen.dart
+
 void main() {
   runApp(const SoctechERP());
 }
@@ -39,12 +45,13 @@ class _MainLayoutState extends State<MainLayout> {
 
   // Lista de pantallas
   final List<Widget> _screens = [
-    const DashboardScreen(), // Nueva pantalla de inicio
-    const ProductsScreen(),
-    const ProjectsScreen(),
+    const DashboardScreen(),
+    const ProductsScreen(), // Esta clase está definida más abajo (o impórtala si la tienes aparte)
+    const ProjectsScreen(), // <--- Ahora usará la del archivo projects_screen.dart
+    const HistoryScreen(),
   ];
 
-  final List<String> _titles = ["Tablero de Control", "Inventario", "Obras Activas"];
+  final List<String> _titles = ["Tablero de Control", "Inventario", "Obras Activas", "Historial"];
 
   @override
   Widget build(BuildContext context) {
@@ -68,18 +75,18 @@ class _MainLayoutState extends State<MainLayout> {
               decoration: BoxDecoration(color: Colors.indigo),
             ),
             
-            // --- OPCIÓN INICIO ---
-            ListTile(
-              leading: const Icon(Icons.dashboard),
-              title: const Text('Inicio'),
-              selected: _selectedIndex == 0,
+            // MENU MOVIMIENTOS
+             ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Movimientos'),
+              selected: _selectedIndex == 3,
               onTap: () {
-                setState(() => _selectedIndex = 0);
+                setState(() => _selectedIndex = 3);
                 Navigator.pop(context);
               },
             ),
 
-            // --- OPCIÓN INVENTARIO ---
+            // MENU INVENTARIO
             ListTile(
               leading: const Icon(Icons.inventory_2),
               title: const Text('Inventario'),
@@ -90,7 +97,7 @@ class _MainLayoutState extends State<MainLayout> {
               },
             ),
 
-            // --- OPCIÓN OBRAS ---
+            // MENU OBRAS
             ListTile(
               leading: const Icon(Icons.apartment),
               title: const Text('Obras'),
@@ -108,7 +115,13 @@ class _MainLayoutState extends State<MainLayout> {
   }
 }
 
-// --- PANTALLA 1: INVENTARIO (CON STOCK VISIBLE) ---
+// ---------------------------------------------------------
+// NOTA: Dejé ProductsScreen aquí porque no sé si tienes
+// el archivo products_screen.dart funcionando. 
+// SI LO TIENES: Borra todo desde aquí hacia abajo e impórtalo arriba.
+// SI NO LO TIENES: Déjalo aquí.
+// ---------------------------------------------------------
+
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
 
@@ -145,13 +158,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       
-      // USAMOS UNA COLUMNA PARA TENER DOS BOTONES FLOTANTES
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // BOTÓN VERDE (COMPRAR)
           FloatingActionButton(
-            heroTag: "btnBuy", // Necesario cuando hay 2 botones
+            heroTag: "btnBuy", 
             backgroundColor: Colors.green,
             child: const Icon(Icons.add_shopping_cart, color: Colors.white),
             tooltip: "Comprar Stock",
@@ -160,19 +171,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 context,
                 MaterialPageRoute(builder: (context) => const PurchaseStockScreen()),
               );
-              if (result == true) {
-                fetchProducts();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("¡Compra registrada!")),
-                  );
-                }
-              }
+              if (result == true) fetchProducts();
             },
           ),
-          const SizedBox(height: 16), // Espacio entre botones
-          
-          // BOTÓN ROJO (CONSUMIR)
+          const SizedBox(height: 16), 
           FloatingActionButton(
             heroTag: "btnConsume",
             backgroundColor: Colors.redAccent,
@@ -183,14 +185,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 context,
                 MaterialPageRoute(builder: (context) => const ConsumeStockScreen()),
               );
-              if (result == true) {
-                fetchProducts();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("¡Salida registrada!")),
-                  );
-                }
-              }
+              if (result == true) fetchProducts();
             },
           ),
         ],
@@ -202,7 +197,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
             itemCount: products.length,
             itemBuilder: (context, index) {
               final product = products[index];
-              // Lógica para saber si hay stock (para colores)
               final double stock = (product['stock'] ?? 0).toDouble();
               final bool hasStock = stock > 0;
 
@@ -210,7 +204,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 elevation: 3,
                 margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 child: ListTile(
-                  // ICONO: Azul si hay stock, Rojo si no
                   leading: CircleAvatar(
                     backgroundColor: hasStock ? Colors.blue.shade100 : Colors.red.shade100,
                     child: Icon(
@@ -219,7 +212,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ),
                   ),
                   title: Text(product['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  // SUBTITULO: Muestra SKU y la cantidad de STOCK
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -243,156 +235,5 @@ class _ProductsScreenState extends State<ProductsScreen> {
   }
 }
 
-// --- PANTALLA 2: OBRAS (CON BOTÓN FLOTANTE) ---
-class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({super.key});
-
-  @override
-  State<ProjectsScreen> createState() => _ProjectsScreenState();
-}
-
-class _ProjectsScreenState extends State<ProjectsScreen> {
-  List<dynamic> projects = [];
-  bool isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    fetchProjects();
-  }
-
-  Future<void> fetchProjects() async {
-    try {
-      final response = await http.get(Uri.parse('http://localhost:5064/api/Projects'));
-      if (response.statusCode == 200) {
-        setState(() {
-          projects = json.decode(response.body);
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
-
-  // Función para consultar costos al Backend
-  Future<void> showProjectCost(BuildContext context, String projectId, String projectName) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      final response = await http.get(Uri.parse('http://localhost:5064/api/Projects/$projectId/costs'));
-      
-      // Si el widget ya no existe, no hacemos nada
-      if (!mounted) return;
-      Navigator.pop(context); // Cierra carga
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final total = data['totalSpent'];
-
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('Costos: $projectName'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.monetization_on, size: 60, color: Colors.green),
-                const SizedBox(height: 20),
-                Text(
-                  '\$$total', 
-                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
-                ),
-                const Text("Total gastado en materiales"),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context), 
-                child: const Text("Cerrar")
-              ),
-            ],
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: ${response.statusCode}")));
-      }
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Usamos un Scaffold anidado para poder tener el Botón Flotante solo en esta pestaña
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Para que se integre bien
-      
-      // EL BOTÓN MÁGICO (+)
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.indigo,
-        child: const Icon(Icons.add, color: Colors.white),
-        onPressed: () async {
-          // Navegar a la pantalla de crear y esperar respuesta
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CreateProjectScreen()),
-          );
-
-          // Si volvimos y el resultado es "true", recargamos la lista
-          if (result == true) {
-            fetchProjects();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("¡Lista actualizada!")),
-              );
-            }
-          }
-        },
-      ),
-
-      body: isLoading 
-          ? const Center(child: CircularProgressIndicator())
-          : projects.isEmpty
-              ? const Center(child: Text("No hay obras registradas. ¡Crea una!"))
-              : ListView.builder(
-                  itemCount: projects.length,
-                  itemBuilder: (context, index) {
-                    final project = projects[index];
-                    return Card(
-                      elevation: 4,
-                      margin: const EdgeInsets.all(10),
-                      child: Column(
-                        children: [
-                          ListTile(
-                            leading: const Icon(Icons.business, color: Colors.indigo, size: 40),
-                            title: Text(project['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                            subtitle: Text("Estado: ${project['status']}"),
-                          ),
-                          const Divider(),
-                          Padding(
-                            padding: const EdgeInsets.all(10.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.attach_money),
-                                  label: const Text("Ver Costos"),
-                                  onPressed: () => showProjectCost(context, project['id'], project['name']),
-                                ),
-                              ],
-                            ),
-                          )
-                        ],
-                      ),
-                    );
-                  },
-                ),
-    );
-  }
-}
+// --- ¡¡¡AQUÍ TERMINA EL ARCHIVO!!! ---
+// He borrado la clase ProjectsScreen vieja que estaba aquí abajo.
