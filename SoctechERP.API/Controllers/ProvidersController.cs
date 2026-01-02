@@ -3,48 +3,36 @@ using Microsoft.EntityFrameworkCore;
 using SoctechERP.API.Data;
 using SoctechERP.API.Models;
 
-namespace SoctechERP.API.Controllers
+[Route("api/[controller]")]
+[ApiController]
+public class ProvidersController : ControllerBase
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class ProvidersController : ControllerBase
+    private readonly AppDbContext _context;
+
+    public ProvidersController(AppDbContext context)
     {
-        private readonly AppDbContext _context;
+        _context = context;
+    }
 
-        public ProvidersController(AppDbContext context)
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<Provider>>> GetProviders()
+    {
+        return await _context.Providers.ToListAsync();
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<Provider>> PostProvider(Provider provider)
+    {
+        // Validación: Evitar CUIT duplicado
+        if (await _context.Providers.AnyAsync(p => p.Cuit == provider.Cuit))
         {
-            _context = context;
+            return BadRequest("Ya existe un proveedor con ese CUIT.");
         }
 
-        // GET: api/Providers
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Provider>>> GetProviders()
-        {
-            return await _context.Providers.Where(p => p.IsActive).ToListAsync();
-        }
+        provider.Id = Guid.NewGuid();
+        _context.Providers.Add(provider);
+        await _context.SaveChangesAsync();
 
-        // GET: api/Providers/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<Provider>> GetProvider(Guid id)
-        {
-            var provider = await _context.Providers.FindAsync(id);
-
-            if (provider == null)
-            {
-                return NotFound();
-            }
-
-            return provider;
-        }
-
-        // POST: api/Providers
-        [HttpPost]
-        public async Task<ActionResult<Provider>> PostProvider(Provider provider)
-        {
-            _context.Providers.Add(provider);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetProvider", new { id = provider.Id }, provider);
-        }
+        return CreatedAtAction("GetProviders", new { id = provider.Id }, provider);
     }
 }

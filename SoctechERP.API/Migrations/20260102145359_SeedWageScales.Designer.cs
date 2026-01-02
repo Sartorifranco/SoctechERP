@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SoctechERP.API.Data;
@@ -11,9 +12,11 @@ using SoctechERP.API.Data;
 namespace SoctechERP.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260102145359_SeedWageScales")]
+    partial class SeedWageScales
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -99,8 +102,9 @@ namespace SoctechERP.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("CurrentProjectId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CategoryName")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("EntryDate")
                         .HasColumnType("timestamp without time zone");
@@ -119,13 +123,10 @@ namespace SoctechERP.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal?>("NegotiatedSalary")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<int>("Union")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("WageScaleId")
+                    b.Property<Guid>("WageScaleId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -242,19 +243,15 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Address")
-                        .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ContactName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Cuit")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsActive")
@@ -262,10 +259,13 @@ namespace SoctechERP.API.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Phone")
                         .HasColumnType("text");
 
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
+                    b.Property<string>("TaxId")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -357,7 +357,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial Especializado",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5584),
+                            ValidFrom = new DateTime(2026, 1, 2, 11, 53, 58, 677, DateTimeKind.Local).AddTicks(9601),
                             ZonePercentage = 0.0
                         },
                         new
@@ -367,7 +367,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5597),
+                            ValidFrom = new DateTime(2026, 1, 2, 11, 53, 58, 677, DateTimeKind.Local).AddTicks(9614),
                             ZonePercentage = 0.0
                         },
                         new
@@ -377,7 +377,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Medio Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5599),
+                            ValidFrom = new DateTime(2026, 1, 2, 11, 53, 58, 677, DateTimeKind.Local).AddTicks(9616),
                             ZonePercentage = 0.0
                         },
                         new
@@ -387,7 +387,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Ayudante",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5602),
+                            ValidFrom = new DateTime(2026, 1, 2, 11, 53, 58, 677, DateTimeKind.Local).AddTicks(9618),
                             ZonePercentage = 0.0
                         },
                         new
@@ -397,7 +397,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo A",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5604),
+                            ValidFrom = new DateTime(2026, 1, 2, 11, 53, 58, 677, DateTimeKind.Local).AddTicks(9620),
                             ZonePercentage = 0.0
                         },
                         new
@@ -407,7 +407,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo B",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5614),
+                            ValidFrom = new DateTime(2026, 1, 2, 11, 53, 58, 677, DateTimeKind.Local).AddTicks(9622),
                             ZonePercentage = 0.0
                         });
                 });
@@ -451,7 +451,9 @@ namespace SoctechERP.API.Migrations
                 {
                     b.HasOne("SoctechERP.API.Models.WageScale", "WageScale")
                         .WithMany()
-                        .HasForeignKey("WageScaleId");
+                        .HasForeignKey("WageScaleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("WageScale");
                 });

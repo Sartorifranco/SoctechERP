@@ -1,15 +1,17 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 // --- IMPORTS DE TUS PANTALLAS ---
-import 'create_project_screen.dart'; 
-import 'consume_stock_screen.dart';
-import 'purchase_stock_screen.dart';
 import 'dashboard_screen.dart';
-import 'history_screen.dart';
-import 'projects_screen.dart'; // <--- ¡AQUÍ ESTÁ LA SOLUCIÓN!
-// import 'products_screen.dart'; // <--- Descomenta esto si ya tienes el archivo products_screen.dart
+import 'projects_screen.dart';      // Obras
+import 'products_screen.dart';      // Catálogo de Materiales
+import 'providers_screen.dart';     // Directorio de Proveedores
+import 'employees_screen.dart';     // RRHH y Legajos
+import 'work_logs_screen.dart';     // Carga de Horas Individual
+import 'add_stock_screen.dart';     // Entrada de Mercadería
+import 'consume_stock_screen.dart'; // Salida de Mercadería
+import 'history_screen.dart';       // Auditoría de Stock
+import 'mass_attendance_screen.dart'; // Parte Diario Masivo
+import 'project_costs_screen.dart';   // Control de Costos (BI)
 
 void main() {
   runApp(const SoctechERP());
@@ -41,23 +43,24 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  int _selectedIndex = 0; // 0=Dashboard, 1=Inventario, 2=Obras
+  // Por defecto iniciamos en el Dashboard
+  Widget _currentScreen = const DashboardScreen();
+  String _currentTitle = "Tablero de Control";
 
-  // Lista de pantallas
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const ProductsScreen(), // Esta clase está definida más abajo (o impórtala si la tienes aparte)
-    const ProjectsScreen(), // <--- Ahora usará la del archivo projects_screen.dart
-    const HistoryScreen(),
-  ];
-
-  final List<String> _titles = ["Tablero de Control", "Inventario", "Obras Activas", "Historial"];
+  // Función para cambiar de pantalla y cerrar el menú
+  void _navigateTo(Widget screen, String title) {
+    setState(() {
+      _currentScreen = screen;
+      _currentTitle = title;
+    });
+    Navigator.pop(context); // Cerrar el Drawer
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_titles[_selectedIndex]),
+        title: Text(_currentTitle),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
       ),
@@ -75,165 +78,110 @@ class _MainLayoutState extends State<MainLayout> {
               decoration: BoxDecoration(color: Colors.indigo),
             ),
             
-            // MENU MOVIMIENTOS
-             ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('Movimientos'),
-              selected: _selectedIndex == 3,
-              onTap: () {
-                setState(() => _selectedIndex = 3);
-                Navigator.pop(context);
-              },
+            // --- SECCIÓN 1: OPERACIONES (Día a Día) ---
+            const Padding(
+              padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
+              child: Text("OPERACIONES", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
             ),
 
-            // MENU INVENTARIO
             ListTile(
-              leading: const Icon(Icons.inventory_2),
-              title: const Text('Inventario'),
-              selected: _selectedIndex == 1,
+              leading: const Icon(Icons.dashboard),
+              title: const Text('Tablero de Control'),
+              onTap: () => _navigateTo(const DashboardScreen(), "Tablero de Control"),
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_shopping_cart, color: Colors.green),
+              title: const Text('Entrada Mercadería'),
               onTap: () {
-                setState(() => _selectedIndex = 1);
                 Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const AddStockScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.output, color: Colors.redAccent),
+              title: const Text('Salida / Consumo'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const ConsumeStockScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add_check_circle, color: Colors.indigo), 
+              title: const Text('Parte Diario Masivo'), 
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const MassAttendanceScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.history_edu, color: Colors.blueGrey),
+              title: const Text('Auditoría de Stock'), 
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoryScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.timer),
+              title: const Text('Carga de Horas (Individual)'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const WorkLogsScreen()));
               },
             ),
 
-            // MENU OBRAS
+            const Divider(),
+
+            // --- SECCIÓN 2: GESTIÓN Y MAESTROS (Listados) ---
+            const Padding(
+              padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
+              child: Text("GESTIÓN / MAESTROS", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+
             ListTile(
               leading: const Icon(Icons.apartment),
-              title: const Text('Obras'),
-              selected: _selectedIndex == 2,
+              title: const Text('Obras y Proyectos'),
+              onTap: () => _navigateTo(const ProjectsScreen(), "Obras Activas"),
+            ),
+            ListTile(
+              leading: const Icon(Icons.inventory),
+              title: const Text('Catálogo de Materiales'),
+              onTap: () => _navigateTo(const ProductsScreen(), "Catálogo de Materiales"),
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_shipping),
+              title: const Text('Directorio Proveedores'),
+              onTap: () => _navigateTo(const ProvidersScreen(), "Directorio de Proveedores"),
+            ),
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Personal / RRHH'),
               onTap: () {
-                setState(() => _selectedIndex = 2);
                 Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeesScreen()));
+              },
+            ),
+
+            const Divider(),
+
+            // --- SECCIÓN 3: REPORTES & BI (NUEVO) ---
+            const Padding(
+              padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
+              child: Text("REPORTES & BI", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+            
+            ListTile(
+              leading: const Icon(Icons.pie_chart, color: Colors.deepPurple),
+              title: const Text('Costos por Obra'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const ProjectCostsScreen()));
               },
             ),
           ],
         ),
       ),
-      body: _screens[_selectedIndex],
+      body: _currentScreen,
     );
   }
 }
-
-// ---------------------------------------------------------
-// NOTA: Dejé ProductsScreen aquí porque no sé si tienes
-// el archivo products_screen.dart funcionando. 
-// SI LO TIENES: Borra todo desde aquí hacia abajo e impórtalo arriba.
-// SI NO LO TIENES: Déjalo aquí.
-// ---------------------------------------------------------
-
-class ProductsScreen extends StatefulWidget {
-  const ProductsScreen({super.key});
-
-  @override
-  State<ProductsScreen> createState() => _ProductsScreenState();
-}
-
-class _ProductsScreenState extends State<ProductsScreen> {
-  List<dynamic> products = [];
-  bool isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    fetchProducts();
-  }
-
-  Future<void> fetchProducts() async {
-    try {
-      final response = await http.get(Uri.parse('http://localhost:5064/api/Products'));
-      if (response.statusCode == 200) {
-        setState(() {
-          products = json.decode(response.body);
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: "btnBuy", 
-            backgroundColor: Colors.green,
-            child: const Icon(Icons.add_shopping_cart, color: Colors.white),
-            tooltip: "Comprar Stock",
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PurchaseStockScreen()),
-              );
-              if (result == true) fetchProducts();
-            },
-          ),
-          const SizedBox(height: 16), 
-          FloatingActionButton(
-            heroTag: "btnConsume",
-            backgroundColor: Colors.redAccent,
-            child: const Icon(Icons.remove_shopping_cart, color: Colors.white),
-            tooltip: "Enviar a Obra",
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ConsumeStockScreen()),
-              );
-              if (result == true) fetchProducts();
-            },
-          ),
-        ],
-      ),
-
-      body: isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : ListView.builder(
-            itemCount: products.length,
-            itemBuilder: (context, index) {
-              final product = products[index];
-              final double stock = (product['stock'] ?? 0).toDouble();
-              final bool hasStock = stock > 0;
-
-              return Card(
-                elevation: 3,
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: hasStock ? Colors.blue.shade100 : Colors.red.shade100,
-                    child: Icon(
-                      Icons.inventory_2, 
-                      color: hasStock ? Colors.blue : Colors.red
-                    ),
-                  ),
-                  title: Text(product['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('SKU: ${product['sku']}'),
-                      Text(
-                        'Stock: ${stock.toStringAsFixed(0)} un.',
-                        style: TextStyle(
-                          color: hasStock ? Colors.black87 : Colors.red,
-                          fontWeight: FontWeight.bold
-                        ),
-                      ),
-                    ],
-                  ),
-                  trailing: Text('\$${product['costPrice']}', 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green)),
-                ),
-              );
-            },
-          ),
-    );
-  }
-}
-
-// --- ¡¡¡AQUÍ TERMINA EL ARCHIVO!!! ---
-// He borrado la clase ProjectsScreen vieja que estaba aquí abajo.

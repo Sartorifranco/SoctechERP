@@ -3,47 +3,37 @@ using Microsoft.EntityFrameworkCore;
 using SoctechERP.API.Data;
 using SoctechERP.API.Models;
 
-namespace SoctechERP.API.Controllers
+[Route("api/[controller]")]
+[ApiController]
+public class ProductsController : ControllerBase
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class ProductsController : ControllerBase
+    private readonly AppDbContext _context;
+
+    public ProductsController(AppDbContext context)
     {
-        private readonly AppDbContext _context;
+        _context = context;
+    }
 
-        public ProductsController(AppDbContext context)
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
+    {
+        return await _context.Products.ToListAsync();
+    }
+
+    // ESTE ES EL MÉTODO QUE NECESITAS PARA CREAR
+    [HttpPost]
+    public async Task<ActionResult<Product>> PostProduct(Product product)
+    {
+        // Validar duplicados de SKU/Código
+        if (await _context.Products.AnyAsync(p => p.Sku == product.Sku))
         {
-            _context = context;
+            return BadRequest("Ya existe un producto con ese SKU / Código.");
         }
 
-        // GET: api/products (Traer todos los productos)
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
-        {
-            return await _context.Products.ToListAsync();
-        }
+        product.Id = Guid.NewGuid();
+        _context.Products.Add(product);
+        await _context.SaveChangesAsync();
 
-        // POST: api/products (Crear un producto nuevo)
-        [HttpPost]
-        public async Task<ActionResult<Product>> PostProduct(Product product)
-        {
-            try
-            {
-                _context.Products.Add(product);
-                await _context.SaveChangesAsync();
-                
-                // Devuelve código 201 (Creado)
-                return CreatedAtAction("GetProducts", new { id = product.Id }, product);
-            }
-            catch (DbUpdateException dbEx)
-            {
-                // Si el error es por duplicado (SKU repetido), devolvemos mensaje amable
-                if (dbEx.InnerException is Npgsql.PostgresException postgresEx && postgresEx.SqlState == "23505")
-                {
-                    return Conflict(new { message = "Ya existe un producto con ese código SKU." });
-                }
-                throw; // Si es otro error, que explote
-            }
-        }
+        return CreatedAtAction("GetProducts", new { id = product.Id }, product);
     }
 }

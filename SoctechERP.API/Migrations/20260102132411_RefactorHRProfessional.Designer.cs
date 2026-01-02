@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SoctechERP.API.Data;
@@ -11,9 +12,11 @@ using SoctechERP.API.Data;
 namespace SoctechERP.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260102132411_RefactorHRProfessional")]
+    partial class RefactorHRProfessional
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -88,9 +91,7 @@ namespace SoctechERP.API.Migrations
 
                     b.Property<string>("Address")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("BirthDate")
                         .HasColumnType("timestamp without time zone");
@@ -99,8 +100,9 @@ namespace SoctechERP.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("CurrentProjectId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CategoryName")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("EntryDate")
                         .HasColumnType("timestamp without time zone");
@@ -119,13 +121,10 @@ namespace SoctechERP.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<decimal?>("NegotiatedSalary")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<int>("Union")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("WageScaleId")
+                    b.Property<Guid>("WageScaleId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
@@ -242,19 +241,15 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Address")
-                        .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ContactName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Cuit")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("IsActive")
@@ -262,10 +257,13 @@ namespace SoctechERP.API.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Phone")
                         .HasColumnType("text");
 
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
+                    b.Property<string>("TaxId")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -326,7 +324,6 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("BasicValue")
-                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("CategoryName")
@@ -348,68 +345,6 @@ namespace SoctechERP.API.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("WageScales");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            BasicValue = 6500m,
-                            CategoryName = "Oficial Especializado",
-                            IsActive = true,
-                            Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5584),
-                            ZonePercentage = 0.0
-                        },
-                        new
-                        {
-                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            BasicValue = 5800m,
-                            CategoryName = "Oficial",
-                            IsActive = true,
-                            Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5597),
-                            ZonePercentage = 0.0
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            BasicValue = 5200m,
-                            CategoryName = "Medio Oficial",
-                            IsActive = true,
-                            Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5599),
-                            ZonePercentage = 0.0
-                        },
-                        new
-                        {
-                            Id = new Guid("44444444-4444-4444-4444-444444444444"),
-                            BasicValue = 4900m,
-                            CategoryName = "Ayudante",
-                            IsActive = true,
-                            Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5602),
-                            ZonePercentage = 0.0
-                        },
-                        new
-                        {
-                            Id = new Guid("55555555-5555-5555-5555-555555555555"),
-                            BasicValue = 950000m,
-                            CategoryName = "Administrativo A",
-                            IsActive = true,
-                            Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5604),
-                            ZonePercentage = 0.0
-                        },
-                        new
-                        {
-                            Id = new Guid("66666666-6666-6666-6666-666666666666"),
-                            BasicValue = 1100000m,
-                            CategoryName = "Administrativo B",
-                            IsActive = true,
-                            Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 2, 16, 36, 52, 349, DateTimeKind.Local).AddTicks(5614),
-                            ZonePercentage = 0.0
-                        });
                 });
 
             modelBuilder.Entity("SoctechERP.API.Models.WorkLog", b =>
@@ -437,7 +372,6 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("RegisteredRateSnapshot")
-                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -451,7 +385,9 @@ namespace SoctechERP.API.Migrations
                 {
                     b.HasOne("SoctechERP.API.Models.WageScale", "WageScale")
                         .WithMany()
-                        .HasForeignKey("WageScaleId");
+                        .HasForeignKey("WageScaleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("WageScale");
                 });

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart'; 
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -10,13 +9,25 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
-  List<dynamic> movements = [];
+class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProviderStateMixin {
+  List<dynamic> allMovements = []; // Lista completa
+  List<dynamic> filteredMovements = []; // Lista visible
+  
   bool isLoading = true;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    // Definimos 3 pestañas: TODOS - ENTRADAS - SALIDAS
+    _tabController = TabController(length: 3, vsync: this);
+    
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        filterList(_tabController.index);
+      }
+    });
+
     fetchHistory();
   }
 
@@ -30,62 +41,109 @@ class _HistoryScreenState extends State<HistoryScreen> {
         // Ordenamos por fecha (del más nuevo al más viejo)
         data.sort((a, b) => b['date'].compareTo(a['date']));
 
-        setState(() {
-          movements = data;
-          isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            allMovements = data;
+            filteredMovements = data; // Al inicio mostramos todo
+            isLoading = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) setState(() => isLoading = false);
     }
   }
 
+  // Lógica de filtrado
+  void filterList(int index) {
+    setState(() {
+      if (index == 0) {
+        // Pestaña 0: TODOS
+        filteredMovements = allMovements;
+      } else if (index == 1) {
+        // Pestaña 1: ENTRADAS (Compras)
+        filteredMovements = allMovements.where((m) => m['movementType'] == 'PURCHASE').toList();
+      } else {
+        // Pestaña 2: SALIDAS (Consumo)
+        filteredMovements = allMovements.where((m) => m['movementType'] == 'CONSUMPTION').toList();
+      }
+    });
+  }
+
+  // Formateador de fecha manual (para no obligarte a instalar 'intl')
+  String formatDate(String isoDate) {
+    try {
+      final DateTime dt = DateTime.parse(isoDate);
+      return "${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}";
+    } catch (e) {
+      return isoDate;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Historial de Movimientos")),
+      appBar: AppBar(
+        title: const Text("Auditoría de Movimientos"),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: "TODOS", icon: Icon(Icons.list)),
+            Tab(text: "ENTRADAS", icon: Icon(Icons.arrow_downward, color: Colors.greenAccent)),
+            Tab(text: "SALIDAS", icon: Icon(Icons.arrow_upward, color: Colors.redAccent)),
+          ],
+        ),
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : movements.isEmpty
-              ? const Center(child: Text("No hay movimientos registrados"))
+          : filteredMovements.isEmpty
+              ? const Center(child: Text("No hay movimientos en esta categoría"))
               : ListView.builder(
-                  itemCount: movements.length,
+                  itemCount: filteredMovements.length,
                   itemBuilder: (context, index) {
-                    final mov = movements[index];
-                    final bool isInput = mov['quantity'] > 0;
+                    final mov = filteredMovements[index];
                     
-                    // Formateo simple de fecha
-                    final DateTime dt = DateTime.parse(mov['date']);
-                    final String formattedDate = DateFormat('dd/MM/yyyy HH:mm').format(dt);
-
+                    // Detectamos tipo
+                    final bool isPurchase = mov['movementType'] == 'PURCHASE';
+                    final double qty = (mov['quantity'] ?? 0).toDouble().abs(); // Siempre positivo para mostrar
+                    
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      elevation: 2,
                       child: ListTile(
-                        // --- CORRECCIÓN AQUÍ: Icons en vez de Colors ---
+                        // Icono Izquierdo
                         leading: CircleAvatar(
-                          backgroundColor: isInput ? Colors.green.shade100 : Colors.red.shade100,
+                          backgroundColor: isPurchase ? Colors.green.shade100 : Colors.red.shade100,
                           child: Icon(
-                            isInput ? Icons.arrow_downward : Icons.arrow_upward,
-                            color: isInput ? Colors.green : Colors.red,
+                            isPurchase ? Icons.add_shopping_cart : Icons.construction,
+                            color: isPurchase ? Colors.green : Colors.red,
+                            size: 20,
                           ),
                         ),
-                        // -----------------------------------------------
+                        // Título
                         title: Text(
-                          mov['reference'] ?? "Sin referencia",
+                          mov['reference'] ?? "Material",
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        subtitle: Text(formattedDate),
+                        // Fecha
+                        subtitle: Text(formatDate(mov['date'])),
+                        
+                        // Derecha: Cantidad y Tipo
                         trailing: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              "${mov['quantity']} un.",
+                              "${isPurchase ? '+' : '-'}${qty.toStringAsFixed(0)}",
                               style: TextStyle(
-                                color: isInput ? Colors.green : Colors.red,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16
+                                color: isPurchase ? Colors.green : Colors.red,
                               ),
+                            ),
+                            Text(
+                              isPurchase ? "Compra" : "Obra",
+                              style: const TextStyle(fontSize: 10, color: Colors.grey),
                             ),
                           ],
                         ),

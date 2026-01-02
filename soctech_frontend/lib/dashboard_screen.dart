@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -10,148 +11,138 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // Variables para guardar los datos
-  double totalValue = 0;
+  // Variables de Estado
   int activeProjects = 0;
-  int lowStockCount = 0;
+  int activeEmployees = 0;
+  double totalStockValue = 0;
   bool isLoading = true;
+
+  final currencyFormat = NumberFormat.currency(locale: 'es_AR', symbol: '\$');
 
   @override
   void initState() {
     super.initState();
-    fetchStats();
+    fetchDashboardData();
   }
 
-  Future<void> fetchStats() async {
+  Future<void> fetchDashboardData() async {
     try {
-      final response = await http.get(Uri.parse('http://localhost:5064/api/Dashboard/stats'));
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      // Hacemos 3 llamados en paralelo para cargar rápido
+      final responses = await Future.wait([
+        http.get(Uri.parse('http://localhost:5064/api/Projects')),
+        http.get(Uri.parse('http://localhost:5064/api/Employees')),
+        http.get(Uri.parse('http://localhost:5064/api/Products')),
+      ]);
+
+      if (responses[0].statusCode == 200 && 
+          responses[1].statusCode == 200 && 
+          responses[2].statusCode == 200) {
+        
+        // 1. Obras Activas
+        List<dynamic> projects = json.decode(responses[0].body);
+        int projCount = projects.where((p) => p['isActive'] == true).length;
+
+        // 2. Personal Activo
+        List<dynamic> employees = json.decode(responses[1].body);
+        int empCount = employees.where((e) => e['isActive'] == true).length;
+
+        // 3. Valorización de Stock (Cantidad * Costo)
+        List<dynamic> products = json.decode(responses[2].body);
+        double stockVal = 0;
+        for (var p in products) {
+          double qty = (p['stock'] ?? 0).toDouble();
+          double cost = (p['costPrice'] ?? 0).toDouble();
+          stockVal += (qty * cost);
+        }
+
         setState(() {
-          // Usamos 'toDouble' para evitar errores int/double
-          totalValue = (data['totalInventoryValue'] ?? 0).toDouble();
-          activeProjects = data['activeProjects'] ?? 0;
-          lowStockCount = data['lowStockCount'] ?? 0;
+          activeProjects = projCount;
+          activeEmployees = empCount;
+          totalStockValue = stockVal;
           isLoading = false;
         });
       }
     } catch (e) {
       print("Error cargando dashboard: $e");
-      if (mounted) setState(() => isLoading = false);
+      if(mounted) setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Fondo gris clarito para resaltar las tarjetas
-      backgroundColor: Colors.grey[100], 
+      // El AppBar ya viene del MainLayout, pero si lo usas solo:
+      // appBar: AppBar(title: const Text("Tablero de Comando")),
       body: isLoading 
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+        ? const Center(child: CircularProgressIndicator())
+        : RefreshIndicator(
+            onRefresh: fetchDashboardData,
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
+              physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "Resumen General",
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.indigo),
+                    "Resumen Ejecutivo", 
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.indigo)
                   ),
                   const SizedBox(height: 20),
                   
-                  // --- TARJETA 1: VALOR DEL INVENTARIO ---
-                  _buildStatCard(
-                    title: "Valor en Depósito",
-                    value: "\$${totalValue.toStringAsFixed(2)}",
-                    icon: Icons.attach_money,
-                    color: Colors.green,
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
+                  // --- TARJETAS DE KPIs ---
                   Row(
                     children: [
-                      // --- TARJETA 2: OBRAS ACTIVAS ---
-                      Expanded(
-                        child: _buildStatCard(
-                          title: "Obras Activas",
-                          value: activeProjects.toString(),
-                          icon: Icons.apartment,
-                          color: Colors.blue,
-                        ),
-                      ),
+                      _buildKPICard("Obras Activas", activeProjects.toString(), Icons.apartment, Colors.orange),
                       const SizedBox(width: 16),
-                      // --- TARJETA 3: ALERTA STOCK ---
-                      Expanded(
-                        child: _buildStatCard(
-                          title: "Stock Bajo",
-                          value: lowStockCount.toString(),
-                          icon: Icons.warning_amber_rounded,
-                          color: Colors.orange,
-                        ),
-                      ),
+                      _buildKPICard("Personal", activeEmployees.toString(), Icons.groups, Colors.blue),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  _buildKPICard("Valor en Stock", currencyFormat.format(totalStockValue), Icons.attach_money, Colors.green, fullWidth: true),
 
                   const SizedBox(height: 30),
                   const Text(
-                    "Accesos Rápidos",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black54),
+                    "Accesos Rápidos", 
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)
                   ),
-                  const SizedBox(height: 10),
+                  const Divider(),
                   
-                  // Aquí puedes poner accesos directos si quieres en el futuro
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Row(
-                        children: [
-                          Icon(Icons.info_outline, color: Colors.grey),
-                          SizedBox(width: 10),
-                          Expanded(child: Text("Selecciona una opción del menú lateral para comenzar a gestionar.")),
-                        ],
-                      ),
-                    ),
-                  )
+                  // Aquí puedes poner accesos directos o gráficos simples
+                  ListTile(
+                    leading: const CircleAvatar(backgroundColor: Colors.indigo, child: Icon(Icons.add, color: Colors.white)),
+                    title: const Text("Nueva Compra de Materiales"),
+                    subtitle: const Text("Registrar ingreso de stock"),
+                    onTap: () {
+                      // Navegación rápida (opcional)
+                    },
+                  ),
                 ],
               ),
             ),
+          ),
     );
   }
 
-  // Widget auxiliar para dibujar las tarjetas bonitas
-  Widget _buildStatCard({required String title, required String value, required IconData icon, required Color color}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 2,
-            blurRadius: 5,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: color, size: 30),
-              // Un puntito decorativo
-              Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.5))),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87)),
-          const SizedBox(height: 5),
-          Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-        ],
+  Widget _buildKPICard(String title, String value, IconData icon, Color color, {bool fullWidth = false}) {
+    return Expanded(
+      flex: fullWidth ? 0 : 1,
+      child: Container(
+        width: fullWidth ? double.infinity : null,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 30),
+            const SizedBox(height: 10),
+            Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+            Text(title, style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500)),
+          ],
+        ),
       ),
     );
   }

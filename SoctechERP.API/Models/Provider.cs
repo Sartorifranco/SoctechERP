@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace SoctechERP.API.Models
@@ -8,18 +9,18 @@ namespace SoctechERP.API.Models
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
-        public Guid CompanyId { get; set; }
+        public string Name { get; set; } = string.Empty; // Razón Social
 
         [Required]
-        [MaxLength(200)]
-        public string Name { get; set; } = string.Empty; // Ej: "Corralón El Amigo"
+        public string Cuit { get; set; } = string.Empty; // <--- ESTO FALTABA
 
-        public string? TaxId { get; set; } // CUIT, RUT o RFC
-        
-        public string? ContactName { get; set; } // Nombre del vendedor
-        public string? Phone { get; set; }
-        public string? Email { get; set; }
-        public string? Address { get; set; }
+        public string ContactName { get; set; } = string.Empty; // Vendedor
+
+        public string PhoneNumber { get; set; } = string.Empty;
+
+        public string Email { get; set; } = string.Empty;
+
+        public string Address { get; set; } = string.Empty;
 
         public bool IsActive { get; set; } = true;
     }
