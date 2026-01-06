@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -9,148 +10,176 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProviderStateMixin {
-  List<dynamic> allMovements = []; // Lista completa
-  List<dynamic> filteredMovements = []; // Lista visible
-  
+class _HistoryScreenState extends State<HistoryScreen> {
+  // Configuración
+  final String baseUrl = 'http://localhost:5064/api';
   bool isLoading = true;
-  late TabController _tabController;
+  
+  // Listas
+  List<dynamic> allMovements = [];
+  List<dynamic> filteredMovements = []; // Para el buscador
+  
+  // Productos para cruzar info (obtener nombres si faltan)
+  List<dynamic> products = [];
+
+  TextEditingController searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Definimos 3 pestañas: TODOS - ENTRADAS - SALIDAS
-    _tabController = TabController(length: 3, vsync: this);
-    
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        filterList(_tabController.index);
-      }
-    });
-
     fetchHistory();
   }
 
   Future<void> fetchHistory() async {
+    setState(() => isLoading = true);
     try {
-      final response = await http.get(Uri.parse('http://localhost:5064/api/StockMovements'));
-      
-      if (response.statusCode == 200) {
-        List<dynamic> data = json.decode(response.body);
-        
-        // Ordenamos por fecha (del más nuevo al más viejo)
-        data.sort((a, b) => b['date'].compareTo(a['date']));
+      // Traemos Movimientos y Productos (para tener los nombres a mano)
+      final responses = await Future.wait([
+        http.get(Uri.parse('$baseUrl/StockMovements')),
+        http.get(Uri.parse('$baseUrl/Products')),
+      ]);
 
-        if (mounted) {
-          setState(() {
-            allMovements = data;
-            filteredMovements = data; // Al inicio mostramos todo
-            isLoading = false;
-          });
-        }
+      if (responses[0].statusCode == 200) {
+        setState(() {
+          allMovements = json.decode(responses[0].body);
+          filteredMovements = allMovements; // Al inicio mostramos todo
+          
+          if (responses[1].statusCode == 200) {
+            products = json.decode(responses[1].body);
+          }
+          isLoading = false;
+        });
+      } else {
+        throw Exception("Error ${responses[0].statusCode}");
       }
     } catch (e) {
-      if (mounted) setState(() => isLoading = false);
+      print("Error cargando historial: $e");
+      setState(() => isLoading = false);
     }
   }
 
-  // Lógica de filtrado
-  void filterList(int index) {
+  // Lógica del Buscador
+  void filterResults(String query) {
+    if (query.isEmpty) {
+      setState(() => filteredMovements = allMovements);
+      return;
+    }
+
     setState(() {
-      if (index == 0) {
-        // Pestaña 0: TODOS
-        filteredMovements = allMovements;
-      } else if (index == 1) {
-        // Pestaña 1: ENTRADAS (Compras)
-        filteredMovements = allMovements.where((m) => m['movementType'] == 'PURCHASE').toList();
-      } else {
-        // Pestaña 2: SALIDAS (Consumo)
-        filteredMovements = allMovements.where((m) => m['movementType'] == 'CONSUMPTION').toList();
-      }
+      filteredMovements = allMovements.where((mov) {
+        // Buscamos en descripción, nombre de producto (si lo tuviéramos) o tipo
+        final desc = (mov['description'] ?? '').toString().toLowerCase();
+        final type = (mov['movementType'] ?? '').toString().toLowerCase();
+        // Si el backend no manda el nombre del producto, podrías buscarlo en la lista 'products' usando el ID
+        // Por ahora buscamos en la descripción que suele tener mucha info
+        return desc.contains(query.toLowerCase()) || type.contains(query.toLowerCase());
+      }).toList();
     });
   }
 
-  // Formateador de fecha manual (para no obligarte a instalar 'intl')
-  String formatDate(String isoDate) {
-    try {
-      final DateTime dt = DateTime.parse(isoDate);
-      return "${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}";
-    } catch (e) {
-      return isoDate;
-    }
+  // Helper para nombre de producto
+  String getProductName(String prodId) {
+    final prod = products.firstWhere((p) => p['id'] == prodId, orElse: () => null);
+    return prod != null ? prod['name'] : 'Producto Desconocido';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Auditoría de Movimientos"),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: "TODOS", icon: Icon(Icons.list)),
-            Tab(text: "ENTRADAS", icon: Icon(Icons.arrow_downward, color: Colors.greenAccent)),
-            Tab(text: "SALIDAS", icon: Icon(Icons.arrow_upward, color: Colors.redAccent)),
-          ],
-        ),
+        title: const Text("Auditoría de Stock"),
+        backgroundColor: Colors.blueGrey,
+        foregroundColor: Colors.white,
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : filteredMovements.isEmpty
-              ? const Center(child: Text("No hay movimientos en esta categoría"))
-              : ListView.builder(
-                  itemCount: filteredMovements.length,
-                  itemBuilder: (context, index) {
-                    final mov = filteredMovements[index];
-                    
-                    // Detectamos tipo
-                    final bool isPurchase = mov['movementType'] == 'PURCHASE';
-                    final double qty = (mov['quantity'] ?? 0).toDouble().abs(); // Siempre positivo para mostrar
-                    
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      elevation: 2,
-                      child: ListTile(
-                        // Icono Izquierdo
-                        leading: CircleAvatar(
-                          backgroundColor: isPurchase ? Colors.green.shade100 : Colors.red.shade100,
-                          child: Icon(
-                            isPurchase ? Icons.add_shopping_cart : Icons.construction,
-                            color: isPurchase ? Colors.green : Colors.red,
-                            size: 20,
-                          ),
-                        ),
-                        // Título
-                        title: Text(
-                          mov['reference'] ?? "Material",
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        // Fecha
-                        subtitle: Text(formatDate(mov['date'])),
+      body: Column(
+        children: [
+          // --- BARRA DE BÚSQUEDA ---
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              controller: searchCtrl,
+              onChanged: filterResults,
+              decoration: InputDecoration(
+                hintText: "Buscar por obra, producto o movimiento...",
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: Colors.grey.shade200,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none
+                ),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    searchCtrl.clear();
+                    filterResults('');
+                  },
+                )
+              ),
+            ),
+          ),
+
+          // --- LISTA DE MOVIMIENTOS ---
+          Expanded(
+            child: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : filteredMovements.isEmpty
+                ? const Center(child: Text("No se encontraron movimientos."))
+                : RefreshIndicator(
+                    onRefresh: fetchHistory,
+                    child: ListView.builder(
+                      itemCount: filteredMovements.length,
+                      itemBuilder: (context, index) {
+                        final mov = filteredMovements[index];
                         
-                        // Derecha: Cantidad y Tipo
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              "${isPurchase ? '+' : '-'}${qty.toStringAsFixed(0)}",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: isPurchase ? Colors.green : Colors.red,
+                        // Datos
+                        final double qty = (mov['quantity'] ?? 0).toDouble();
+                        final bool isEntry = qty > 0;
+                        final DateTime date = DateTime.tryParse(mov['date']) ?? DateTime.now();
+                        
+                        // Si el backend no manda 'productName' directo en el movimiento, lo buscamos
+                        // (Depende de cómo definimos StockMovementsController)
+                        // Como tu Controller actual devuelve la entidad StockMovement pura, usamos el helper:
+                        final String prodName = getProductName(mov['productId']);
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          elevation: 2,
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: isEntry ? Colors.green.shade100 : Colors.red.shade100,
+                              child: Icon(
+                                isEntry ? Icons.arrow_downward : Icons.arrow_upward, // Abajo es entrada (cae al deposito), Arriba es salida (se va)
+                                color: isEntry ? Colors.green : Colors.red,
                               ),
                             ),
-                            Text(
-                              isPurchase ? "Compra" : "Obra",
-                              style: const TextStyle(fontSize: 10, color: Colors.grey),
+                            title: Text(prodName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(mov['description'] ?? 'Sin descripción'),
+                                Text(
+                                  DateFormat('dd/MM/yyyy HH:mm').format(date),
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                            trailing: Text(
+                              "${isEntry ? '+' : ''}$qty",
+                              style: TextStyle(
+                                fontSize: 18, 
+                                fontWeight: FontWeight.bold,
+                                color: isEntry ? Colors.green : Colors.red
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

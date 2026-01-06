@@ -15,24 +15,42 @@ namespace SoctechERP.API.Controllers
             _context = context;
         }
 
-        [HttpGet("stats")]
-        public async Task<ActionResult> GetDashboardStats()
+        // GET: api/Dashboard/kpi
+        // Este endpoint es el "Cerebro". Calcula todo en el servidor y devuelve un resumen ligero.
+        [HttpGet("kpi")]
+        public async Task<ActionResult<object>> GetKPIs()
         {
-            // 1. Contar Obras Activas (Usamos IsActive, NO Status)
+            var today = DateTime.UtcNow;
+            var firstDayMonth = new DateTime(today.Year, today.Month, 1);
+
+            // 1. LIQUIDEZ TOTAL (Caja + Bancos)
+            // Sumamos el saldo de todas las billeteras activas.
+            var totalCash = await _context.Wallets
+                .Where(w => w.IsActive)
+                .SumAsync(w => w.Balance);
+
+            // 2. VENTAS DEL MES (Facturación)
+            // Sumamos el Bruto de las facturas emitidas desde el día 1 del mes.
+            var salesThisMonth = await _context.SalesInvoices
+                .Where(i => i.InvoiceDate >= firstDayMonth)
+                .SumAsync(i => i.GrossTotal);
+
+            // 3. DEUDA A PROVEEDORES (Cuentas por Pagar)
+            // Sumamos facturas que están Aprobadas (Approved) o Flagged, pero NO Pagadas (Paid).
+            var debtPending = await _context.SupplierInvoices
+                .Where(i => i.Status == "Approved" || i.Status == "Flagged")
+                .SumAsync(i => i.TotalAmount);
+
+            // 4. OBRAS ACTIVAS
             var activeProjects = await _context.Projects.CountAsync(p => p.IsActive);
 
-            // 2. Contar Empleados Activos
-            var activeEmployees = await _context.Employees.CountAsync(e => e.IsActive);
-
-            // 3. Valorización del Stock (Cantidad * Precio de Costo)
-            var totalStockValue = await _context.Products
-                .SumAsync(p => p.Stock * p.CostPrice);
-
-            return Ok(new
+            return Ok(new 
             {
-                activeProjects,
-                activeEmployees,
-                totalStockValue
+                TotalCash = totalCash,
+                SalesMonth = salesThisMonth,
+                DebtPending = debtPending,
+                ActiveProjects = activeProjects,
+                LastUpdate = DateTime.Now
             });
         }
     }

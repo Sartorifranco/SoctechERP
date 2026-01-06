@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SoctechERP.API.Data;
@@ -11,9 +12,11 @@ using SoctechERP.API.Data;
 namespace SoctechERP.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260106143343_AddSupplierInvoices")]
+    partial class AddSupplierInvoices
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -117,7 +120,6 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("AgreedAmount")
-                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid>("ContractorId")
@@ -245,7 +247,6 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal?>("NegotiatedSalary")
-                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("Union")
@@ -259,45 +260,6 @@ namespace SoctechERP.API.Migrations
                     b.HasIndex("WageScaleId");
 
                     b.ToTable("Employees");
-                });
-
-            modelBuilder.Entity("SoctechERP.API.Models.FinancialTransaction", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("RelatedSalesInvoiceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("RelatedSupplierInvoiceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("WalletId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("WalletName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("FinancialTransactions");
                 });
 
             modelBuilder.Entity("SoctechERP.API.Models.Product", b =>
@@ -517,87 +479,6 @@ namespace SoctechERP.API.Migrations
                     b.ToTable("PurchaseOrderItems");
                 });
 
-            modelBuilder.Entity("SoctechERP.API.Models.SalesInvoice", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CAE")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ClientCuit")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ClientName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("CollectibleAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Concept")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("GrossTotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime>("InvoiceDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("InvoiceNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("InvoiceType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("NetAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ProjectName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("RetainageAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("RetainagePercentage")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("SalePoint")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("VatAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("VatPercentage")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime?>("VtoCAE")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SalesInvoices");
-                });
-
             modelBuilder.Entity("SoctechERP.API.Models.StockMovement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -672,11 +553,9 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("NetAmount")
-                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("OtherTaxes")
-                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid?>("ProjectId")
@@ -697,11 +576,9 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("TotalAmount")
-                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("VatAmount")
-                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -747,7 +624,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial Especializado",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 6, 15, 56, 5, 244, DateTimeKind.Local).AddTicks(2156),
+                            ValidFrom = new DateTime(2026, 1, 6, 11, 33, 43, 504, DateTimeKind.Local).AddTicks(1920),
                             ZonePercentage = 0.0
                         },
                         new
@@ -757,7 +634,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 6, 15, 56, 5, 244, DateTimeKind.Local).AddTicks(2170),
+                            ValidFrom = new DateTime(2026, 1, 6, 11, 33, 43, 504, DateTimeKind.Local).AddTicks(1932),
                             ZonePercentage = 0.0
                         },
                         new
@@ -767,7 +644,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Medio Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 6, 15, 56, 5, 244, DateTimeKind.Local).AddTicks(2172),
+                            ValidFrom = new DateTime(2026, 1, 6, 11, 33, 43, 504, DateTimeKind.Local).AddTicks(1934),
                             ZonePercentage = 0.0
                         },
                         new
@@ -777,7 +654,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Ayudante",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 6, 15, 56, 5, 244, DateTimeKind.Local).AddTicks(2174),
+                            ValidFrom = new DateTime(2026, 1, 6, 11, 33, 43, 504, DateTimeKind.Local).AddTicks(1936),
                             ZonePercentage = 0.0
                         },
                         new
@@ -787,7 +664,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo A",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 6, 15, 56, 5, 244, DateTimeKind.Local).AddTicks(2176),
+                            ValidFrom = new DateTime(2026, 1, 6, 11, 33, 43, 504, DateTimeKind.Local).AddTicks(1938),
                             ZonePercentage = 0.0
                         },
                         new
@@ -797,39 +674,9 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo B",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 6, 15, 56, 5, 244, DateTimeKind.Local).AddTicks(2178),
+                            ValidFrom = new DateTime(2026, 1, 6, 11, 33, 43, 504, DateTimeKind.Local).AddTicks(1941),
                             ZonePercentage = 0.0
                         });
-                });
-
-            modelBuilder.Entity("SoctechERP.API.Models.Wallet", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Balance")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Wallets");
                 });
 
             modelBuilder.Entity("SoctechERP.API.Models.WorkLog", b =>

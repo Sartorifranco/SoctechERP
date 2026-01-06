@@ -16,6 +16,9 @@ class _ProjectCostsScreenState extends State<ProjectCostsScreen> {
   
   // Formato moneda: $ 10.500.200,00
   final currencyFormat = NumberFormat.currency(locale: 'es_AR', symbol: '\$');
+  
+  // URL Base correcta
+  final String baseUrl = 'http://localhost:5064/api';
 
   @override
   void initState() {
@@ -23,100 +26,107 @@ class _ProjectCostsScreenState extends State<ProjectCostsScreen> {
     calculateCosts();
   }
 
+  // Helper para evitar que la app explote si un módulo no está listo en el Backend
+  Future<List<dynamic>> fetchSafe(String endpoint) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/$endpoint'));
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      print("Módulo $endpoint no disponible o error de conexión.");
+    }
+    return []; // Retorna lista vacía si falla, para que el resto siga funcionando
+  }
+
   Future<void> calculateCosts() async {
     try {
-      // 1. Traemos TODOS los datos necesarios (Ahora incluimos Contratistas)
+      // 1. Traemos los datos de forma SEGURA
       final responses = await Future.wait([
-        http.get(Uri.parse('http://localhost:5064/api/Projects')),        // [0]
-        http.get(Uri.parse('http://localhost:5064/api/StockMovements')),  // [1]
-        http.get(Uri.parse('http://localhost:5064/api/WorkLogs')),        // [2]
-        http.get(Uri.parse('http://localhost:5064/api/Contractors/jobs')) // [3] <--- NUEVO
+        fetchSafe('Projects'),         // [0]
+        fetchSafe('StockMovements'),   // [1]
+        fetchSafe('WorkLogs'),         // [2] (Si no existe, devuelve [])
+        fetchSafe('Contractors/jobs')  // [3] (Si no existe, devuelve [])
       ]);
 
-      if (responses[0].statusCode == 200) {
-        
-        List<dynamic> projects = json.decode(responses[0].body);
-        List<dynamic> stockMovs = json.decode(responses[1].body);
-        List<dynamic> workLogs = json.decode(responses[2].body);
-        List<dynamic> contractorJobs = json.decode(responses[3].body); // <--- NUEVO
+      List<dynamic> projects = responses[0];
+      List<dynamic> stockMovs = responses[1];
+      List<dynamic> workLogs = responses[2];
+      List<dynamic> contractorJobs = responses[3];
 
-        List<Map<String, dynamic>> calculatedList = [];
+      List<Map<String, dynamic>> calculatedList = [];
 
-        // 2. Iteramos por cada Proyecto para calcular sus costos
-        for (var proj in projects) {
-          String projId = proj['id'];
-          String projName = proj['name'];
+      // 2. Iteramos por cada Proyecto
+      for (var proj in projects) {
+        // Solo procesamos obras activas
+        if (proj['isActive'] == false && proj['status'] == 'Finished') continue;
 
-          // A. COSTO DE MATERIALES (Stock)
-          double materialCost = 0;
-          var projMaterials = stockMovs.where((m) => m['projectId'] == projId && m['movementType'] == 'CONSUMPTION');
-          for (var mov in projMaterials) {
-            double qty = (mov['quantity'] ?? 0).toDouble().abs(); 
-            double cost = (mov['unitCost'] ?? 0).toDouble(); 
-            materialCost += (qty * cost);
-          }
+        String projId = proj['id'];
+        String projName = proj['name'];
 
-          // B. COSTO DE MANO DE OBRA PROPIA (Empleados)
-          double laborCost = 0;
-          double totalHours = 0;
-          
-          // Filtramos logs que tengan este projectId asignado
-          var projLabor = workLogs.where((w) => w['projectId'] == projId); 
-
-          for (var log in projLabor) {
-            double hours = (log['hoursWorked'] ?? 0).toDouble();
-            double rate = (log['registeredRateSnapshot'] ?? 0).toDouble();
-            
-            // Si es UOCRA (por hora) multiplicamos directo.
-            // Si es Mensual (FDC/UECARA), el rate es el sueldo mensual.
-            // Para simplificar el BI, asumimos costo hora = rate / 200 si el valor es muy alto (> 100.000)
-            // O usamos la lógica que definimos antes. Por ahora sumamos costo directo estimado.
-            
-            double costoLog = 0;
-            if (rate > 200000) { // Es sueldo mensual
-               costoLog = hours * (rate / 200);
-            } else { // Es valor hora
-               costoLog = hours * rate;
-            }
-
-            laborCost += costoLog;
-            totalHours += hours;
-          }
-
-          // C. COSTO DE SUBCONTRATISTAS (Terceros) <--- NUEVO CÁLCULO
-          double contractorCost = 0;
-          var projContractors = contractorJobs.where((j) => j['projectId'] == projId);
-          
-          for (var job in projContractors) {
-             contractorCost += (job['agreedAmount'] ?? 0).toDouble();
-          }
-
-          double totalProject = materialCost + laborCost + contractorCost;
-
-          // Solo mostramos si hay gastos
-          if (totalProject > 0) {
-            calculatedList.add({
-              "name": projName,
-              "materials": materialCost,
-              "labor": laborCost,
-              "contractors": contractorCost, // Guardamos el valor
-              "hours": totalHours,
-              "total": totalProject
-            });
-          }
+        // A. COSTO DE MATERIALES (Stock)
+        double materialCost = 0;
+        var projMaterials = stockMovs.where((m) => m['projectId'] == projId && (m['movementType'] == 'CONSUMPTION' || m['movementType'] == 'DISPATCH'));
+        for (var mov in projMaterials) {
+          double qty = (mov['quantity'] ?? 0).toDouble().abs(); 
+          // Si tienes unitCost guardado en el movimiento, úsalo. Si no, habría que buscar el producto.
+          // Asumimos que tu backend de Salidas guardó el costo histórico o actual.
+          // Si mov['unitCost'] viene nulo, temporalmente usamos un estimado o 0.
+          double cost = (mov['unitCost'] ?? 0).toDouble(); 
+          materialCost += (qty * cost);
         }
 
-        // Ordenamos por el que más gastó
-        calculatedList.sort((a, b) => b['total'].compareTo(a['total']));
+        // B. COSTO DE MANO DE OBRA (Empleados)
+        double laborCost = 0;
+        double totalHours = 0;
+        var projLabor = workLogs.where((w) => w['projectId'] == projId); 
 
+        for (var log in projLabor) {
+          double hours = (log['hoursWorked'] ?? 0).toDouble();
+          double rate = (log['registeredRateSnapshot'] ?? 0).toDouble();
+          
+          double costoLog = 0;
+          if (rate > 200000) { // Lógica de sueldo mensual
+             costoLog = hours * (rate / 200);
+          } else { // Valor hora
+             costoLog = hours * rate;
+          }
+          laborCost += costoLog;
+          totalHours += hours;
+        }
+
+        // C. COSTO DE SUBCONTRATISTAS
+        double contractorCost = 0;
+        var projContractors = contractorJobs.where((j) => j['projectId'] == projId);
+        for (var job in projContractors) {
+           contractorCost += (job['agreedAmount'] ?? 0).toDouble();
+        }
+
+        double totalProject = materialCost + laborCost + contractorCost;
+
+        // Agregamos a la lista (incluso si es 0, para ver que la obra existe)
+        calculatedList.add({
+          "name": projName,
+          "materials": materialCost,
+          "labor": laborCost,
+          "contractors": contractorCost,
+          "hours": totalHours,
+          "total": totalProject
+        });
+      }
+
+      // Ordenamos por gasto descendente
+      calculatedList.sort((a, b) => b['total'].compareTo(a['total']));
+
+      if (mounted) {
         setState(() {
           projectCosts = calculatedList;
           isLoading = false;
         });
       }
     } catch (e) {
-      print("Error calculando costos: $e");
-      setState(() => isLoading = false);
+      print("Error crítico calculando costos: $e");
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -124,14 +134,14 @@ class _ProjectCostsScreenState extends State<ProjectCostsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Centro de Costos (BI)"),
+        title: const Text("Dashboard de Costos"),
         backgroundColor: Colors.indigo.shade800,
         foregroundColor: Colors.white,
       ),
       body: isLoading
         ? const Center(child: CircularProgressIndicator())
         : projectCosts.isEmpty
-          ? const Center(child: Text("No hay costos registrados en las obras."))
+          ? const Center(child: Text("No hay obras activas o datos de costos."))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: projectCosts.length,
@@ -139,10 +149,10 @@ class _ProjectCostsScreenState extends State<ProjectCostsScreen> {
                 final item = projectCosts[index];
                 double mat = item['materials'];
                 double lab = item['labor'];
-                double cont = item['contractors']; // Terceros
+                double cont = item['contractors']; 
                 double total = item['total'];
                 
-                // Porcentajes de incidencia (evitando división por 0)
+                // Porcentajes para la barra visual
                 double matPct = total > 0 ? (mat / total) : 0;
                 double labPct = total > 0 ? (lab / total) : 0;
                 double contPct = total > 0 ? (cont / total) : 0;
@@ -156,7 +166,7 @@ class _ProjectCostsScreenState extends State<ProjectCostsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header con Nombre y Total
+                        // Header
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -170,32 +180,31 @@ class _ProjectCostsScreenState extends State<ProjectCostsScreen> {
                         ),
                         const Divider(height: 25),
                         
-                        // Barra de Progreso Visual (TRICOLOR)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(5),
-                          child: SizedBox(
-                            height: 12, // Un poco más gruesa
-                            child: Row(
-                              children: [
-                                Expanded(flex: (matPct * 100).toInt(), child: Container(color: Colors.orange, child: const Tooltip(message: "Materiales"))),
-                                Expanded(flex: (labPct * 100).toInt(), child: Container(color: Colors.blue, child: const Tooltip(message: "RRHH Propio"))),
-                                Expanded(flex: (contPct * 100).toInt(), child: Container(color: Colors.purple, child: const Tooltip(message: "Subcontratos"))),
-                              ],
+                        // Barra Tricolor (Visualización rápida)
+                        if (total > 0) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(5),
+                            child: SizedBox(
+                              height: 12,
+                              child: Row(
+                                children: [
+                                  if (matPct > 0) Expanded(flex: (matPct * 100).toInt(), child: Container(color: Colors.orange)),
+                                  if (labPct > 0) Expanded(flex: (labPct * 100).toInt(), child: Container(color: Colors.blue)),
+                                  if (contPct > 0) Expanded(flex: (contPct * 100).toInt(), child: Container(color: Colors.purple)),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
+                          const SizedBox(height: 12),
+                        ],
                         
                         // Detalles Numéricos
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            // 1. Materiales
                             _buildDetailItem("Materiales", mat, matPct, Colors.orange),
-                            // 2. Propios
-                            _buildDetailItem("Propios", lab, labPct, Colors.blue),
-                            // 3. Terceros
-                            _buildDetailItem("Terceros", cont, contPct, Colors.purple),
+                            _buildDetailItem("RRHH", lab, labPct, Colors.blue),
+                            _buildDetailItem("Subcontratos", cont, contPct, Colors.purple),
                           ],
                         )
                       ],
@@ -209,12 +218,13 @@ class _ProjectCostsScreenState extends State<ProjectCostsScreen> {
 
   Widget _buildDetailItem(String label, double amount, double pct, Color color) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Icon(Icons.circle, size: 8, color: color),
             const SizedBox(width: 4),
-            Text("$label (${(pct*100).toStringAsFixed(0)}%)", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Text("$label ${(pct*100).toStringAsFixed(0)}%", style: const TextStyle(fontSize: 11, color: Colors.grey)),
           ],
         ),
         Text(currencyFormat.format(amount), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),

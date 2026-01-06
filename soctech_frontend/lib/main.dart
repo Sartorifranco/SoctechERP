@@ -2,18 +2,29 @@ import 'package:flutter/material.dart';
 
 // --- IMPORTS DE TUS PANTALLAS ---
 import 'dashboard_screen.dart';
-import 'projects_screen.dart';      // Obras y Certificaciones
-import 'products_screen.dart';      // Catálogo de Materiales
-import 'providers_screen.dart';     // Directorio de Proveedores
-import 'employees_screen.dart';     // RRHH y Legajos
-import 'work_logs_screen.dart';     // Carga de Horas Individual
-import 'add_stock_screen.dart';     // Entrada de Mercadería
-import 'consume_stock_screen.dart'; // Salida de Mercadería
-import 'history_screen.dart';       // Auditoría de Stock
-import 'mass_attendance_screen.dart'; // Parte Diario Masivo
-import 'project_costs_screen.dart';   // Control de Costos (BI)
-import 'contractors_screen.dart';     // <--- GESTIÓN DE SUBCONTRATISTAS
-import 'purchase_orders_screen.dart';
+import 'projects_screen.dart';      
+import 'products_screen.dart';      
+import 'providers_screen.dart';     
+import 'employees_screen.dart';     
+import 'work_logs_screen.dart';     
+import 'add_stock_screen.dart';     
+import 'consume_stock_screen.dart'; 
+import 'history_screen.dart';       
+import 'mass_attendance_screen.dart'; 
+import 'project_costs_screen.dart';   
+import 'contractors_screen.dart';     
+import 'purchase_orders_screen.dart'; 
+
+// --- IMPORTS DE ADMINISTRACIÓN ---
+import 'invoice_entry_screen.dart';   
+import 'invoice_list_screen.dart';    
+
+// --- IMPORTS DE VENTAS ---
+import 'sales_invoice_screen.dart';      
+import 'sales_invoice_list_screen.dart'; 
+
+// --- IMPORTS DE TESORERÍA ---
+import 'treasury_screen.dart';           
 
 void main() {
   runApp(const SoctechERP());
@@ -30,13 +41,14 @@ class SoctechERP extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.indigo,
         useMaterial3: true,
+        // Ajustes para que se sienta más "Desktop"
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
       home: const MainLayout(),
     );
   }
 }
 
-// --- ESTRUCTURA PRINCIPAL (MENÚ + PANTALLAS) ---
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
 
@@ -45,164 +57,179 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  // Por defecto iniciamos en el Dashboard
   Widget _currentScreen = const DashboardScreen();
   String _currentTitle = "Tablero de Control";
 
-  // Función para cambiar de pantalla y cerrar el menú
+  // Esta función ahora solo actualiza el estado, no cierra el drawer manualmente
+  // porque en Desktop el drawer no existe (es fijo).
   void _navigateTo(Widget screen, String title) {
     setState(() {
       _currentScreen = screen;
       _currentTitle = title;
     });
-    Navigator.pop(context); // Cerrar el Drawer
+    // Solo cerramos el drawer si estamos en modo movil
+    if (MediaQuery.of(context).size.width < 800) {
+      Navigator.pop(context); 
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Detectamos el ancho de la pantalla
+    final width = MediaQuery.of(context).size.width;
+    final bool isDesktop = width >= 800; // Punto de quiebre para considerar PC
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_currentTitle),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const UserAccountsDrawerHeader(
-              accountName: Text("Admin Soctech"),
-              accountEmail: Text("admin@soctech.com"),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Text("S", style: TextStyle(fontSize: 40.0, color: Colors.indigo)),
+      // En Desktop, NO usamos AppBar arriba con menu hamburguesa
+      appBar: isDesktop 
+          ? null 
+          : AppBar(title: Text(_currentTitle), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+      
+      // En Movil, usamos Drawer. En Desktop es null.
+      drawer: isDesktop ? null : Drawer(child: AppMenu(onNavigate: _navigateTo)),
+      
+      body: Row(
+        children: [
+          // 1. SI ES DESKTOP: Mostramos el Sidebar Fijo a la izquierda
+          if (isDesktop)
+            SizedBox(
+              width: 270, // Ancho del menú lateral
+              child: Container(
+                color: Colors.white, // Fondo del menú
+                child: Column(
+                  children: [
+                    // Header del Sidebar
+                    Container(
+                      height: 150,
+                      color: Colors.indigo.shade900,
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircleAvatar(backgroundColor: Colors.white, child: Text("S", style: TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold))),
+                          SizedBox(height: 10),
+                          Text("SOCTECH ERP", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                          Text("Admin Console", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    // La lista de opciones
+                    Expanded(
+                      child: AppMenu(onNavigate: _navigateTo),
+                    ),
+                  ],
+                ),
               ),
-              decoration: BoxDecoration(color: Colors.indigo),
             ),
-            
-            // --- SECCIÓN 1: OPERACIONES (Día a Día) ---
-            const Padding(
-              padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
-              child: Text("OPERACIONES", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
-            ),
+          
+          if (isDesktop) const VerticalDivider(width: 1, thickness: 1, color: Colors.grey),
 
-            ListTile(
-              leading: const Icon(Icons.dashboard),
-              title: const Text('Tablero de Control'),
-              onTap: () => _navigateTo(const DashboardScreen(), "Tablero de Control"),
+          // 2. EL CONTENIDO PRINCIPAL
+          Expanded(
+            child: Column(
+              children: [
+                // En Desktop, agregamos una "TopBar" personalizada ya que quitamos el AppBar
+                if (isDesktop)
+                  Container(
+                    height: 60,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    color: Colors.white,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_currentTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                        const Row(
+                          children: [
+                            Icon(Icons.notifications, color: Colors.grey),
+                            SizedBox(width: 15),
+                            CircleAvatar(radius: 15, backgroundColor: Colors.indigo, child: Text("A", style: TextStyle(color: Colors.white, fontSize: 12))),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                if (isDesktop) const Divider(height: 1),
+                
+                // La pantalla real
+                Expanded(child: _currentScreen),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.add_shopping_cart, color: Colors.green),
-              title: const Text('Entrada Mercadería'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const AddStockScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.output, color: Colors.redAccent),
-              title: const Text('Salida / Consumo'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const ConsumeStockScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.playlist_add_check_circle, color: Colors.indigo), 
-              title: const Text('Parte Diario Masivo'), 
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const MassAttendanceScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.history_edu, color: Colors.blueGrey),
-              title: const Text('Auditoría de Stock'), 
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoryScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.timer),
-              title: const Text('Carga de Horas (Individual)'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const WorkLogsScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.shopping_bag, color: Colors.blue),
-              title: const Text('Órdenes de Compra'),
-              subtitle: const Text("Solicitar y recibir stock"), // Opcional
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const PurchaseOrdersScreen()));
-              },
-            ),
-
-            const Divider(),
-
-            // --- SECCIÓN 2: GESTIÓN Y MAESTROS (Listados) ---
-            const Padding(
-              padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
-              child: Text("GESTIÓN / MAESTROS", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
-            ),
-
-            ListTile(
-              leading: const Icon(Icons.apartment),
-              title: const Text('Obras y Proyectos'),
-              onTap: () => _navigateTo(const ProjectsScreen(), "Obras Activas"),
-            ),
-            ListTile(
-              leading: const Icon(Icons.inventory),
-              title: const Text('Catálogo de Materiales'),
-              onTap: () => _navigateTo(const ProductsScreen(), "Catálogo de Materiales"),
-            ),
-            ListTile(
-              leading: const Icon(Icons.local_shipping),
-              title: const Text('Directorio Proveedores'),
-              onTap: () => _navigateTo(const ProvidersScreen(), "Directorio de Proveedores"),
-            ),
-            // --- NUEVO MÓDULO: SUBCONTRATISTAS ---
-            ListTile(
-              leading: const Icon(Icons.engineering, color: Colors.orange),
-              title: const Text('Subcontratistas'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const ContractorsScreen()));
-              },
-            ),
-            // -------------------------------------
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text('Personal / RRHH'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeesScreen()));
-              },
-            ),
-
-            const Divider(),
-
-            // --- SECCIÓN 3: REPORTES & BI ---
-            const Padding(
-              padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
-              child: Text("REPORTES & BI", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
-            ),
-            
-            ListTile(
-              leading: const Icon(Icons.pie_chart, color: Colors.deepPurple),
-              title: const Text('Costos por Obra'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const ProjectCostsScreen()));
-              },
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
-      body: _currentScreen,
+    );
+  }
+}
+
+// --- WIDGET DEL MENÚ (Extraído para reusar en Movil y Desktop) ---
+class AppMenu extends StatelessWidget {
+  final Function(Widget, String) onNavigate;
+
+  const AppMenu({super.key, required this.onNavigate});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        if (MediaQuery.of(context).size.width < 800) // Solo mostrar header en movil (en desktop ya lo pusimos fijo arriba)
+          const UserAccountsDrawerHeader(
+            accountName: Text("Admin Soctech"),
+            accountEmail: Text("admin@soctech.com"),
+            currentAccountPicture: CircleAvatar(backgroundColor: Colors.white, child: Text("S", style: TextStyle(fontSize: 40.0, color: Colors.indigo))),
+            decoration: BoxDecoration(color: Colors.indigo),
+          ),
+
+        _sectionTitle("OPERACIONES"),
+        _menuItem(Icons.dashboard, 'Tablero de Control', () => onNavigate(const DashboardScreen(), "Tablero de Control")),
+        _menuItem(Icons.add_shopping_cart, 'Entrada Mercadería', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AddStockScreen())), color: Colors.green),
+        _menuItem(Icons.output, 'Salida / Consumo', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ConsumeStockScreen())), color: Colors.redAccent),
+        _menuItem(Icons.playlist_add_check_circle, 'Parte Diario Masivo', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const MassAttendanceScreen()))),
+        _menuItem(Icons.history_edu, 'Auditoría de Stock', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const HistoryScreen()))),
+        _menuItem(Icons.timer, 'Carga de Horas', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const WorkLogsScreen()))),
+        _menuItem(Icons.shopping_bag, 'Órdenes de Compra', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const PurchaseOrdersScreen())), color: Colors.blue),
+
+        const Divider(),
+        _sectionTitle("ADMIN / TESORERÍA"),
+        _menuItem(Icons.account_balance_wallet, 'Caja y Bancos', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const TreasuryScreen())), color: Colors.teal),
+        _menuItem(Icons.receipt_long, 'Cargar Factura Prov.', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const InvoiceEntryScreen())), color: Colors.deepPurple),
+        _menuItem(Icons.folder_shared, 'Bandeja de Facturas', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const InvoiceListScreen()))),
+
+        const Divider(),
+        _sectionTitle("VENTAS"),
+        _menuItem(Icons.print, 'Emitir Factura Venta', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SalesInvoiceScreen())), color: Colors.green[700]),
+        _menuItem(Icons.history, 'Historial Ventas', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const SalesInvoiceListScreen()))),
+
+        const Divider(),
+        _sectionTitle("GESTIÓN"),
+        _menuItem(Icons.apartment, 'Obras y Proyectos', () => onNavigate(const ProjectsScreen(), "Obras Activas")),
+        _menuItem(Icons.inventory, 'Catálogo Materiales', () => onNavigate(const ProductsScreen(), "Catálogo de Materiales")),
+        _menuItem(Icons.local_shipping, 'Proveedores', () => onNavigate(const ProvidersScreen(), "Directorio de Proveedores")),
+        _menuItem(Icons.engineering, 'Subcontratistas', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ContractorsScreen())), color: Colors.orange),
+        _menuItem(Icons.people, 'Personal / RRHH', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const EmployeesScreen()))),
+        
+        const Divider(),
+        _sectionTitle("REPORTES"),
+        _menuItem(Icons.pie_chart, 'Costos por Obra', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProjectCostsScreen())), color: Colors.deepPurple),
+      ],
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, top: 15, bottom: 5),
+      child: Text(title, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _menuItem(IconData icon, String title, VoidCallback onTap, {Color? color}) {
+    return ListTile(
+      leading: Icon(icon, color: color ?? Colors.grey[700], size: 22),
+      title: Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[800])),
+      dense: true, // Hace los items más compactos, mejor para Desktop
+      onTap: onTap,
     );
   }
 }

@@ -17,15 +17,24 @@ namespace SoctechERP.API.Controllers
         }
 
         // 1. GET: api/projects
-        // Lista todas las obras activas
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Project>>> GetProjects()
         {
             return await _context.Projects.ToListAsync();
         }
 
-        // 2. POST: api/projects
-        // Crea una obra nueva (Ej: "Torre Capital")
+        // --- NUEVO MÉTODO AGREGADO (SOLUCIÓN A "CARGANDO NOMBRE DE OBRA") ---
+        // 2. GET: api/projects/{id}
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Project>> GetProject(Guid id)
+        {
+            var project = await _context.Projects.FindAsync(id);
+            if (project == null) return NotFound();
+            return project;
+        }
+        // --------------------------------------------------------------------
+
+        // 3. POST: api/projects
         [HttpPost]
         public async Task<ActionResult<Project>> PostProject(Project project)
         {
@@ -34,20 +43,14 @@ namespace SoctechERP.API.Controllers
             return CreatedAtAction("GetProjects", new { id = project.Id }, project);
         }
 
-        // 3. NUEVO - GET: api/projects/{projectId}/costs
-        // Calcula cuánto dinero se ha "enterrado" en la obra hasta hoy
+        // 4. GET: api/projects/{projectId}/costs
         [HttpGet("{projectId}/costs")]
         public async Task<ActionResult> GetProjectCosts(Guid projectId)
         {
-            // Verificamos si la obra existe
             var project = await _context.Projects.FindAsync(projectId);
-            if (project == null)
-            {
-                return NotFound("La obra no existe.");
-            }
+            if (project == null) return NotFound("La obra no existe.");
 
-            // Sumamos (Cantidad * Costo) de todos los consumos de ESA obra.
-            // Usamos Math.Abs porque el consumo se guarda negativo (-100), pero el costo es positivo.
+            // Costo de Materiales
             var totalSpent = await _context.StockMovements
                 .Where(m => m.ProjectId == projectId && m.MovementType == "CONSUMPTION")
                 .SumAsync(m => Math.Abs(m.Quantity) * m.UnitCost);
