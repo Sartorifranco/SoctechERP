@@ -14,7 +14,7 @@ namespace SoctechERP.API.Models
         public UnionType Union { get; set; } // UOCRA o UECARA
 
         [Required]
-        public string CategoryName { get; set; } // Ej: "Oficial Especializado", "Administrativo A"
+        public string CategoryName { get; set; } = string.Empty; // Ej: "Oficial Especializado", "Administrativo A"
 
         // Valor Básico: Si es UOCRA es "por hora", si es Admin es "por mes".
         [Column(TypeName = "decimal(18,2)")]

@@ -18,11 +18,20 @@ namespace SoctechERP.API.Data
         public DbSet<Project> Projects { get; set; }
         public DbSet<Provider> Providers { get; set; }
         public DbSet<ProjectPhase> ProjectPhases { get; set; }
-        
+        public DbSet<ProjectCertificate> ProjectCertificates { get; set; }
+        public DbSet<Contractor> Contractors { get; set; }
+        public DbSet<ContractorJob> ContractorJobs { get; set; }
+        public DbSet<PurchaseOrder> PurchaseOrders { get; set; }
+        public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; }
+        public DbSet<Dispatch> Dispatches { get; set; }
+        public DbSet<DispatchItem> DispatchItems { get; set; }
+
         // MÓDULO RRHH (NUEVO)
         public DbSet<Employee> Employees { get; set; }
         public DbSet<WorkLog> WorkLogs { get; set; }
         public DbSet<WageScale> WageScales { get; set; } // <--- Tabla de Categorías/Precios
+
+        
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

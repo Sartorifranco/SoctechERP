@@ -10,9 +10,9 @@ namespace SoctechERP.API.Models // Ajusta el namespace según tu proyecto
         public Guid Id { get; set; }
 
         [Required]
-        public string Name { get; set; } // Ej: "Cimientos", "Techo"
-
-        public string Description { get; set; }
+        public string Name { get; set; } = string.Empty; // <--- CORREGIDO
+        
+        public string Description { get; set; } = string.Empty;
 
         public double Budget { get; set; } // Presupuesto específico para esta fase
 

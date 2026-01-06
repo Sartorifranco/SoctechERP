@@ -36,6 +36,8 @@ namespace SoctechERP.API.Models
 
         public DateTime Date { get; set; } = DateTime.UtcNow;
 
+        public string Description { get; set; } = string.Empty;
+
         [MaxLength(100)]
         public string? Reference { get; set; }
     }

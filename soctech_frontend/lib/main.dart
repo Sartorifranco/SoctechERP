@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 // --- IMPORTS DE TUS PANTALLAS ---
 import 'dashboard_screen.dart';
-import 'projects_screen.dart';      // Obras
+import 'projects_screen.dart';      // Obras y Certificaciones
 import 'products_screen.dart';      // Catálogo de Materiales
 import 'providers_screen.dart';     // Directorio de Proveedores
 import 'employees_screen.dart';     // RRHH y Legajos
@@ -12,6 +12,8 @@ import 'consume_stock_screen.dart'; // Salida de Mercadería
 import 'history_screen.dart';       // Auditoría de Stock
 import 'mass_attendance_screen.dart'; // Parte Diario Masivo
 import 'project_costs_screen.dart';   // Control de Costos (BI)
+import 'contractors_screen.dart';     // <--- GESTIÓN DE SUBCONTRATISTAS
+import 'purchase_orders_screen.dart';
 
 void main() {
   runApp(const SoctechERP());
@@ -129,6 +131,15 @@ class _MainLayoutState extends State<MainLayout> {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const WorkLogsScreen()));
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.shopping_bag, color: Colors.blue),
+              title: const Text('Órdenes de Compra'),
+              subtitle: const Text("Solicitar y recibir stock"), // Opcional
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const PurchaseOrdersScreen()));
+              },
+            ),
 
             const Divider(),
 
@@ -153,6 +164,16 @@ class _MainLayoutState extends State<MainLayout> {
               title: const Text('Directorio Proveedores'),
               onTap: () => _navigateTo(const ProvidersScreen(), "Directorio de Proveedores"),
             ),
+            // --- NUEVO MÓDULO: SUBCONTRATISTAS ---
+            ListTile(
+              leading: const Icon(Icons.engineering, color: Colors.orange),
+              title: const Text('Subcontratistas'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const ContractorsScreen()));
+              },
+            ),
+            // -------------------------------------
             ListTile(
               leading: const Icon(Icons.people),
               title: const Text('Personal / RRHH'),
@@ -164,7 +185,7 @@ class _MainLayoutState extends State<MainLayout> {
 
             const Divider(),
 
-            // --- SECCIÓN 3: REPORTES & BI (NUEVO) ---
+            // --- SECCIÓN 3: REPORTES & BI ---
             const Padding(
               padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
               child: Text("REPORTES & BI", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),

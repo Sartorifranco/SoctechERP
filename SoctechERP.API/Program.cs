@@ -1,10 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using SoctechERP.API.Data;
 
-// --- CORRECCIÓN PARA FECHAS (IMPORTANTE) ---
-// Esto permite guardar fechas sin zona horaria (como las que manda Flutter)
+// Configuración para fechas (PostgreSQL)
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
-// -------------------------------------------
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,14 +11,24 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// 2. Agregar servicios básicos de la API
+// 2. CONFIGURACIÓN DE CORS (Permitir conexión desde el Frontend)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("PermitirTodo", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// 3. AUTO-MIGRACIÓN: Esto crea la Base de Datos automáticamente al iniciar si no existe
+// 3. AUTO-MIGRACIÓN
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -36,15 +44,23 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 4. Configurar el entorno visual (Swagger)
+// 4. Configurar Swagger
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// --- CAMBIO IMPORTANTE AQUÍ ---
+// Comentamos esta línea para evitar el error de redirección de puerto
+// app.UseHttpsRedirection(); 
+// ------------------------------
+
+// Activamos CORS
+app.UseCors("PermitirTodo");
+
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();

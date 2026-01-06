@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SoctechERP.API.Data;
@@ -11,9 +12,11 @@ using SoctechERP.API.Data;
 namespace SoctechERP.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260105150725_AddDispatch")]
+    partial class AddDispatch
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -564,7 +567,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial Especializado",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 5, 12, 17, 13, 248, DateTimeKind.Local).AddTicks(8074),
+                            ValidFrom = new DateTime(2026, 1, 5, 12, 7, 25, 671, DateTimeKind.Local).AddTicks(6596),
                             ZonePercentage = 0.0
                         },
                         new
@@ -574,7 +577,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 5, 12, 17, 13, 248, DateTimeKind.Local).AddTicks(8086),
+                            ValidFrom = new DateTime(2026, 1, 5, 12, 7, 25, 671, DateTimeKind.Local).AddTicks(6612),
                             ZonePercentage = 0.0
                         },
                         new
@@ -584,7 +587,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Medio Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 5, 12, 17, 13, 248, DateTimeKind.Local).AddTicks(8094),
+                            ValidFrom = new DateTime(2026, 1, 5, 12, 7, 25, 671, DateTimeKind.Local).AddTicks(6614),
                             ZonePercentage = 0.0
                         },
                         new
@@ -594,7 +597,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Ayudante",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 5, 12, 17, 13, 248, DateTimeKind.Local).AddTicks(8096),
+                            ValidFrom = new DateTime(2026, 1, 5, 12, 7, 25, 671, DateTimeKind.Local).AddTicks(6617),
                             ZonePercentage = 0.0
                         },
                         new
@@ -604,7 +607,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo A",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 5, 12, 17, 13, 248, DateTimeKind.Local).AddTicks(8098),
+                            ValidFrom = new DateTime(2026, 1, 5, 12, 7, 25, 671, DateTimeKind.Local).AddTicks(6625),
                             ZonePercentage = 0.0
                         },
                         new
@@ -614,7 +617,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo B",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 5, 12, 17, 13, 248, DateTimeKind.Local).AddTicks(8100),
+                            ValidFrom = new DateTime(2026, 1, 5, 12, 7, 25, 671, DateTimeKind.Local).AddTicks(6627),
                             ZonePercentage = 0.0
                         });
                 });

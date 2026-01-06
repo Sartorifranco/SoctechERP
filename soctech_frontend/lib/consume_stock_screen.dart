@@ -17,12 +17,12 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
   // Listas de Datos
   List<dynamic> products = [];
   List<dynamic> projects = [];
-  List<dynamic> projectPhases = []; // <--- Lista para las fases
+  List<dynamic> projectPhases = [];
 
   // Selecciones
   String? selectedProductId;
   String? selectedProjectId;
-  String? selectedPhaseId; // <--- Fase seleccionada
+  String? selectedPhaseId;
   
   // Info auxiliar
   double currentStock = 0;
@@ -35,6 +35,7 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
 
   Future<void> loadInitialData() async {
     try {
+      // Asegúrate de que el puerto sea el 5064 (el que te dio Swagger)
       final resProd = await http.get(Uri.parse('http://localhost:5064/api/Products'));
       final resProj = await http.get(Uri.parse('http://localhost:5064/api/Projects'));
 
@@ -78,21 +79,30 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
 
   void onProductSelected(String? id) {
     if (id == null) return;
-    final prod = products.firstWhere((p) => p['id'] == id);
-    setState(() {
-      selectedProductId = id;
-      currentStock = (prod['stock'] ?? 0).toDouble();
-    });
+    // Buscamos el producto en la lista para saber su stock actual
+    final prod = products.firstWhere((p) => p['id'] == id, orElse: () => null);
+    if (prod != null) {
+      setState(() {
+        selectedProductId = id;
+        currentStock = (prod['stock'] ?? 0).toDouble();
+      });
+    }
   }
 
   Future<void> saveExit() async {
-    // Validación más estricta: Ahora pedimos Fase si la obra tiene fases
+    // 1. Validaciones básicas
     if (selectedProductId == null || selectedProjectId == null || _quantityController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Completa los campos obligatorios")));
       return;
     }
 
     double quantity = double.tryParse(_quantityController.text) ?? 0;
+    
+    if (quantity <= 0) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("La cantidad debe ser mayor a 0")));
+       return;
+    }
+
     if (quantity > currentStock) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡No tienes suficiente stock!")));
       return;
@@ -100,39 +110,45 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
 
     setState(() => isSaving = true);
 
-    const String companyId = "3fa85f64-5717-4562-b3fc-2c963f66afa6"; 
-    const String branchId = "9c9d8c46-970e-4647-83e9-8c084f771982"; 
-
-    final prod = products.firstWhere((p) => p['id'] == selectedProductId);
-    double unitCost = (prod['costPrice'] ?? 0).toDouble();
-
-    final movement = {
-      "companyId": companyId,
-      "branchId": branchId,
-      "productId": selectedProductId,
-      "projectId": selectedProjectId,
-      "projectPhaseId": selectedPhaseId, // <--- Enviamos la fase seleccionada (puede ser null)
-      "movementType": "CONSUMPTION",
-      "quantity": quantity * -1,
-      "unitCost": unitCost,
-      "date": DateTime.now().toIso8601String(),
-      "reference": _descriptionController.text.isEmpty ? "Salida a Obra" : _descriptionController.text
-    };
-
     try {
+      // 2. Obtener nombre de la fase (si existe) para enviarlo al backend
+      String phaseName = "";
+      if (selectedPhaseId != null && projectPhases.isNotEmpty) {
+         final phaseObj = projectPhases.firstWhere((p) => p['id'] == selectedPhaseId, orElse: () => null);
+         if (phaseObj != null) {
+           phaseName = phaseObj['name'];
+         }
+      }
+
+      // 3. ARMAR EL PAQUETE (JSON)
+      // Esta estructura coincide exactamente con tu clase "Dispatch" en C#
+      final dispatchPayload = {
+        "projectId": selectedProjectId,
+        "note": _descriptionController.text.isEmpty ? "Salida desde App" : _descriptionController.text,
+        "items": [
+          {
+            "productId": selectedProductId,
+            "quantity": quantity, // Enviamos positivo, el backend lo resta
+            "projectPhaseName": phaseName
+          }
+        ]
+      };
+
+      // 4. ENVIAR A LA API (Endpoint Correcto)
       final response = await http.post(
-        Uri.parse('http://localhost:5064/api/StockMovements'),
+        Uri.parse('http://localhost:5064/api/dispatch'), // <--- AQUÍ ESTÁ LA CORRECCIÓN CLAVE
         headers: {"Content-Type": "application/json"},
-        body: json.encode(movement),
+        body: json.encode(dispatchPayload),
       );
 
-      if (response.statusCode == 201) {
+      // 5. RESPUESTA
+      if (response.statusCode == 200 || response.statusCode == 201) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Salida imputada correctamente")));
-          Navigator.pop(context, true); 
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡Salida registrada correctamente!")));
+          Navigator.pop(context, true); // Volver atrás y recargar
         }
       } else {
-        throw Exception("Error ${response.statusCode}");
+        throw Exception("Error del servidor (${response.statusCode}): ${response.body}");
       }
     } catch (e) {
       setState(() => isSaving = false);
@@ -168,12 +184,11 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
                     child: Text(proj['name']),
                   );
                 }).toList(),
-                onChanged: onProjectSelected, // Al cambiar, carga las fases
+                onChanged: onProjectSelected,
               ),
               const SizedBox(height: 16),
 
               // --- 2. SELECCIONAR FASE (Dinámico) ---
-              // Solo se muestra si ya elegiste obra
               if (selectedProjectId != null) 
                 AnimatedOpacity(
                   opacity: 1.0,
@@ -195,7 +210,6 @@ class _ConsumeStockScreenState extends State<ConsumeStockScreen> {
                           );
                         }).toList(),
                     onChanged: (val) => setState(() => selectedPhaseId = val),
-                    // Si no hay fases cargadas, deshabilitamos el campo visualmente
                     disabledHint: const Text("Esta obra no tiene fases definidas"),
                   ),
                 ),

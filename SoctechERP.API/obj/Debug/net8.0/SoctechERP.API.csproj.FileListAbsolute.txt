@@ -90,6 +90,7 @@ C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\SoctechERP.API.AssemblyInfo.cs
 C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\SoctechERP.API.csproj.CoreCompileInputs.cache
 C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\SoctechERP.API.MvcApplicationPartsAssemblyInfo.cs
 C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\SoctechERP.API.MvcApplicationPartsAssemblyInfo.cache
+C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\SoctechERP.API.sourcelink.json
 C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\rjimswa.dswa.cache.json
 C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\rjsmrazor.dswa.cache.json
 C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\rjsmcshtml.dswa.cache.json
@@ -104,4 +105,3 @@ C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\refint\SoctechERP.API.dll
 C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\SoctechERP.API.pdb
 C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\SoctechERP.API.genruntimeconfig.cache
 C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\ref\SoctechERP.API.dll
-C:\ERP-AMG\SoctechERP.API\obj\Debug\net8.0\SoctechERP.API.sourcelink.json
