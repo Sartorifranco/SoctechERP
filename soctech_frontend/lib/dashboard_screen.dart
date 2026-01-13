@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
-// --- IMPORTS PARA NAVEGACIÓN ---
+// --- IMPORTS DE TUS PANTALLAS ---
+import 'chat_widget.dart'; // <--- IMPORTANTE: Aquí está el Chatbot
 import 'treasury_screen.dart';
 import 'sales_invoice_screen.dart';
 import 'invoice_entry_screen.dart';
 import 'projects_screen.dart';
+// import 'employees_screen.dart'; // Descomenta si quieres navegar a empleados desde aquí
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -67,7 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     } catch (e) {
       if(mounted && !isBackground) setState(() => isLoading = false);
-      // En background fallamos silenciosamente para no molestar al usuario
+      // En background fallamos silenciosamente
     }
   }
 
@@ -85,10 +87,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
+      
+      // --- BOTÓN FLOTANTE DEL CHATBOT ---
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true, // Para que ocupe más altura si es necesario
+            backgroundColor: Colors.transparent,
+            builder: (context) => const ChatWidget(), // Abre la ventana de chat
+          );
+        },
+        backgroundColor: Colors.indigo.shade900,
+        child: const Icon(Icons.smart_toy, color: Colors.white), // Icono de Robot
+      ),
+      // -----------------------------------
+
       body: isLoading 
         ? const Center(child: CircularProgressIndicator()) 
         : SingleChildScrollView(
-            // physics: const AlwaysScrollableScrollPhysics(), // Ya no es necesario el pull-to-refresh
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -131,7 +148,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text("Disponibilidad Total", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                                  // Animación implícita de cambio de número (opcional, por ahora texto plano)
                                   Text(currencyFormat.format(totalCash), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87)),
                                 ],
                               ),

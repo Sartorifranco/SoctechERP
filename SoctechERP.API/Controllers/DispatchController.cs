@@ -5,8 +5,7 @@ using SoctechERP.API.Models;
 
 namespace SoctechERP.API.Controllers
 {
-    // CORRECCIÓN CLAVE: Fijamos la ruta en minúscula para evitar errores 405
-    [Route("api/dispatch")]
+    [Route("api/[controller]")]
     [ApiController]
     public class DispatchController : ControllerBase
     {
@@ -17,7 +16,7 @@ namespace SoctechERP.API.Controllers
             _context = context;
         }
 
-        // GET: api/dispatch (Para ver el historial de remitos si lo necesitas)
+        // GET: api/Dispatch
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Dispatch>>> GetDispatches()
         {
@@ -27,7 +26,7 @@ namespace SoctechERP.API.Controllers
                                  .ToListAsync();
         }
 
-        // POST: api/dispatch
+        // POST: api/Dispatch
         [HttpPost]
         public async Task<ActionResult<Dispatch>> PostDispatch(Dispatch dispatch)
         {
@@ -55,14 +54,14 @@ namespace SoctechERP.API.Controllers
                     var product = await _context.Products.FindAsync(item.ProductId);
                     if (product == null) throw new Exception($"Producto no encontrado ID: {item.ProductId}");
 
-                    // 4. Validar Stock
-                    if (product.Stock < item.Quantity)
+                    // 4. Validar Stock (CORREGIDO: Casting a decimal)
+                    if (product.Stock < (decimal)item.Quantity)
                         throw new Exception($"Stock insuficiente para '{product.Name}'. Disponible: {product.Stock}");
 
-                    // 5. Restar Stock
-                    product.Stock -= item.Quantity;
+                    // 5. Restar Stock (CORREGIDO: Casting a decimal)
+                    product.Stock -= (decimal)item.Quantity;
 
-                    // 6. Validar nombre de la Fase (Cosmético para el historial)
+                    // 6. Validar nombre de la Fase
                     string phaseName = !string.IsNullOrEmpty(item.ProjectPhaseName) 
                                        ? item.ProjectPhaseName 
                                        : "General";
@@ -71,15 +70,13 @@ namespace SoctechERP.API.Controllers
                     var movement = new StockMovement
                     {
                         ProductId = item.ProductId,
-                        ProjectId = dispatch.ProjectId, // Imputado a la obra
+                        ProjectId = dispatch.ProjectId,
                         
                         // Cantidad negativa = Salida. Convertimos double a decimal.
                         Quantity = -1 * (decimal)item.Quantity, 
                         
                         MovementType = "DISPATCH",
                         Date = DateTime.UtcNow,
-                        
-                        // Guardamos la Nota y la Fase en la descripción
                         Description = $"Salida a {project.Name} ({phaseName}) - {dispatch.Note}"
                     };
                     

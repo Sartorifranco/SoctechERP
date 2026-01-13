@@ -16,7 +16,7 @@ namespace SoctechERP.API.Controllers
             _context = context;
         }
 
-        // 1. GET: Listar órdenes con sus ítems
+        // 1. GET: Listar órdenes
         [HttpGet]
         public async Task<ActionResult<IEnumerable<PurchaseOrder>>> GetOrders()
         {
@@ -26,7 +26,7 @@ namespace SoctechERP.API.Controllers
                                  .ToListAsync();
         }
 
-        // 2. GET: Obtener una orden específica (Necesario para el CreatedAtAction)
+        // 2. GET: Obtener una orden específica
         [HttpGet("{id}")]
         public async Task<ActionResult<PurchaseOrder>> GetOrder(Guid id)
         {
@@ -39,7 +39,7 @@ namespace SoctechERP.API.Controllers
             return order;
         }
 
-        // 3. POST: Crear nueva orden (Borrador)
+        // 3. POST: Crear nueva orden
         [HttpPost]
         public async Task<ActionResult<PurchaseOrder>> PostOrder(PurchaseOrder order)
         {
@@ -53,7 +53,7 @@ namespace SoctechERP.API.Controllers
             return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
         }
 
-        // 4. PUT: RECIBIR MERCADERÍA
+        // 4. PUT: RECIBIR MERCADERÍA (Suma Stock)
         [HttpPut("{id}/receive")]
         public async Task<IActionResult> ReceiveOrder(Guid id)
         {
@@ -76,7 +76,7 @@ namespace SoctechERP.API.Controllers
                 {
                     ProductId = item.ProductId,
                     ProjectId = null,
-                    // CORRECCIÓN 1: Convertimos de double a decimal explícitamente
+                    // CORRECCIÓN: Casteamos a decimal
                     Quantity = (decimal)item.Quantity, 
                     MovementType = "PURCHASE",
                     Date = DateTime.UtcNow,
@@ -88,15 +88,13 @@ namespace SoctechERP.API.Controllers
                 var product = await _context.Products.FindAsync(item.ProductId);
                 if (product != null)
                 {
-                    // Convertimos la cantidad a double para sumar al stock (si product.Stock es double)
-                    // Nota: Si product.Stock es decimal, quita el (double) de abajo.
-                    // Asumo que product.Stock es double basado en tus errores previos.
-                    product.Stock += item.Quantity;
+                    // CORRECCIÓN CRÍTICA: Product.Stock es decimal, item.Quantity es double.
+                    // Usamos (decimal) para evitar el error CS0019
+                    product.Stock += (decimal)item.Quantity;
                     
                     if (item.UnitPrice > 0)
                     {
-                        // CORRECCIÓN 2: Convertimos de decimal a double explícitamente
-                        product.CostPrice = (double)item.UnitPrice; 
+                        product.CostPrice = item.UnitPrice; 
                     }
                 }
             }

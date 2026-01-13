@@ -16,70 +16,68 @@ namespace SoctechERP.API.Controllers
             _context = context;
         }
 
-        // GET: api/WorkLogs?projectId=...
-        // Mantenemos tu lógica de filtros, ¡es excelente!
+        // GET: api/WorkLogs
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<WorkLog>>> GetWorkLogs(Guid? projectId)
+        public async Task<ActionResult<IEnumerable<WorkLog>>> GetWorkLogs()
         {
-            var query = _context.WorkLogs.Include(w => w.Employee).AsQueryable();
-
-            if (projectId != null)
-            {
-                query = query.Where(w => w.ProjectId == projectId);
-            }
-
-            return await query.OrderByDescending(w => w.Date).ToListAsync();
+            return await _context.WorkLogs
+                .Include(w => w.Employee)
+                .Include(w => w.Project) // Ahora sí existe Project
+                .OrderByDescending(w => w.Date)
+                .ToListAsync();
         }
 
         // POST: api/WorkLogs
-        // CORREGIDO: Soporta empleados "Fuera de Convenio" (Sueldo Negociado)
         [HttpPost]
         public async Task<ActionResult<WorkLog>> PostWorkLog(WorkLog workLog)
         {
-            // 1. Buscamos al empleado y su escala
+            // 1. Validar empleado
             var employee = await _context.Employees
-                                         .Include(e => e.WageScale) 
-                                         .FirstOrDefaultAsync(e => e.Id == workLog.EmployeeId);
+                .Include(e => e.WageScale)
+                .FirstOrDefaultAsync(e => e.Id == workLog.EmployeeId);
 
-            if (employee == null) return NotFound("Empleado no encontrado");
+            if (employee == null) return BadRequest("Empleado no válido");
 
-            // 2. LÓGICA DE PRECIO (SNAPSHOT)
-            // Aquí arreglamos el bug. Antes obligabas a tener WageScale. 
-            // Ahora miramos primero si hay Sueldo Negociado.
+            // 2. Determinar el valor hora (Rate) - Todo en decimal para evitar errores de moneda
+            decimal hourlyRate = 0;
 
-            decimal finalRate = 0;
-
-            if (employee.NegotiatedSalary.HasValue && employee.NegotiatedSalary > 0)
+            if (employee.NegotiatedSalary.HasValue && employee.NegotiatedSalary.Value > 0)
             {
-                // A. Tiene Sueldo Manual (Fuera de Convenio)
-                // Si el valor es muy alto (ej: > 200.000), asumimos que es mensual y lo dividimos por 200 horas promedio
-                if (employee.NegotiatedSalary > 200000)
-                    finalRate = employee.NegotiatedSalary.Value / 200;
-                else
-                    finalRate = employee.NegotiatedSalary.Value; // Ya es valor hora
+                // Convertimos el double a decimal para operar
+                decimal baseSalary = (decimal)employee.NegotiatedSalary.Value;
+                
+                // Si es mensual (Frequency 1), dividimos por 176 horas
+                hourlyRate = (employee.Frequency == 1) ? (baseSalary / 176m) : baseSalary;
             }
             else if (employee.WageScale != null)
             {
-                // B. Es de Gremio (UOCRA/UECARA)
-                finalRate = employee.WageScale.BasicValue;
-            }
-            else
-            {
-                // C. No tiene nada cargado
-                return BadRequest("El empleado no tiene Categoría asignada ni Sueldo Negociado. No se puede calcular el costo.");
+                // WageScale.BasicValue suele ser double, lo casteamos
+                hourlyRate = (decimal)employee.WageScale.BasicValue;
             }
 
-            // Guardamos la foto del precio
-            workLog.RegisteredRateSnapshot = finalRate;
+            // 3. Calcular Costo (Horas [double] * Tarifa [decimal])
+            workLog.HourlyRateSnapshot = hourlyRate;
             
-            // Completamos IDs y Fechas
-            workLog.Id = Guid.NewGuid();
-            if (workLog.Date == DateTime.MinValue) workLog.Date = DateTime.UtcNow;
+            // Truco: Convertir las horas a decimal para multiplicar peras con peras
+            workLog.TotalCost = (decimal)workLog.HoursWorked * hourlyRate;
 
             _context.WorkLogs.Add(workLog);
             await _context.SaveChangesAsync();
-            
+
             return CreatedAtAction("GetWorkLogs", new { id = workLog.Id }, workLog);
+        }
+        
+        // DELETE: api/WorkLogs/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteWorkLog(Guid id)
+        {
+            var workLog = await _context.WorkLogs.FindAsync(id);
+            if (workLog == null) return NotFound();
+
+            _context.WorkLogs.Remove(workLog);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
     }
 }

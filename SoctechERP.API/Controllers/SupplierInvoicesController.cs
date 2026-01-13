@@ -16,42 +16,58 @@ namespace SoctechERP.API.Controllers
             _context = context;
         }
 
+        // GET: api/SupplierInvoices
         [HttpGet]
         public async Task<ActionResult<IEnumerable<SupplierInvoice>>> GetInvoices()
         {
             return await _context.SupplierInvoices.OrderByDescending(i => i.InvoiceDate).ToListAsync();
         }
 
+        // POST: api/SupplierInvoices
         [HttpPost]
         public async Task<ActionResult<SupplierInvoice>> PostInvoice(SupplierInvoice invoice)
         {
             if (invoice.ProviderId == Guid.Empty) return BadRequest("Falta el Proveedor");
 
-            // LÓGICA "3-WAY MATCH"
+            // 1. LÓGICA "3-WAY MATCH"
             if (invoice.RelatedPurchaseOrderId != null)
             {
-                var order = await _context.PurchaseOrders.FindAsync(invoice.RelatedPurchaseOrderId);
+                var order = await _context.PurchaseOrders
+                                          .Include(po => po.Items) 
+                                          .FirstOrDefaultAsync(o => o.Id == invoice.RelatedPurchaseOrderId);
+
                 if (order != null)
                 {
-                    // --- CORRECCIÓN CRÍTICA ---
-                    // Antes comparaba Total vs Neto (Error). Ahora compara Total vs Total.
                     decimal difference = Math.Abs(order.TotalAmount - invoice.TotalAmount); 
                     
-                    // Margen de tolerancia de $1000 por redondeos
                     if (difference > 1000) 
                     {
-                        invoice.Status = "Flagged"; // Diferencia de precio -> Observada
+                        invoice.Status = "Flagged"; // Diferencia de precio
                     }
                     else
                     {
-                        invoice.Status = "Approved"; // Coincide -> Aprobada
-                        order.Status = "Invoiced"; 
+                        // --- ACTUALIZACIÓN DE STOCK AUTOMÁTICA ---
+                        invoice.Status = "Approved"; 
+                        order.Status = "Finished";
+
+                        foreach (var item in order.Items)
+                        {
+                            var product = await _context.Products.FindAsync(item.ProductId);
+                            if (product != null)
+                            {
+                                // CORRECCIÓN 1: Usamos .Stock (coincide con el modelo)
+                                // CORRECCIÓN 2: Agregamos (decimal) para evitar el error de tipos
+                                product.Stock += (decimal)item.Quantity; 
+                                
+                                product.CostPrice = item.UnitPrice; 
+                            }
+                        }
                     }
                 }
             }
             else 
             {
-                invoice.Status = "Approved"; // Sin orden previa -> Aprobada directo
+                invoice.Status = "Approved"; 
             }
 
             invoice.Id = Guid.NewGuid();
@@ -61,11 +77,12 @@ namespace SoctechERP.API.Controllers
             return CreatedAtAction("GetInvoices", new { id = invoice.Id }, invoice);
         }
         
+        // DASHBOARD
         [HttpGet("debt-summary")]
         public async Task<ActionResult<object>> GetDebtSummary()
         {
              var debt = await _context.SupplierInvoices
-                                      .Where(i => i.Status == "Approved")
+                                      .Where(i => i.Status == "Approved" || i.Status == "Flagged")
                                       .GroupBy(i => i.ProviderName)
                                       .Select(g => new { 
                                           Provider = g.Key, 

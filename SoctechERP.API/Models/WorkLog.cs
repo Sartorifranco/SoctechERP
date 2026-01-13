@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -7,25 +6,27 @@ namespace SoctechERP.API.Models
     public class WorkLog
     {
         [Key]
-        public Guid Id { get; set; } = Guid.NewGuid();
-
-        public Guid EmployeeId { get; set; }
-        
-        // --- AQUÍ ESTÁ EL CAMBIO ---
-        [ForeignKey("EmployeeId")]
-        public Employee? Employee { get; set; } // <--- Agrega el '?' para evitar el Error 400
-        // ---------------------------
-
-        public Guid ProjectId { get; set; }
-        public Guid? ProjectPhaseId { get; set; }
+        public Guid Id { get; set; }
 
         public DateTime Date { get; set; }
+        public double HoursWorked { get; set; }
+        public string Description { get; set; } = string.Empty;
 
-        public double HoursWorked { get; set; } 
+        // Relación con Empleado
+        public Guid EmployeeId { get; set; }
+        public Employee? Employee { get; set; }
+
+        // --- CAMPOS NUEVOS QUE FALTABAN ---
+        
+        // Relación con Obra (Para saber dónde trabajó)
+        public Guid ProjectId { get; set; }
+        public Project? Project { get; set; }
+
+        // Datos Financieros (Snapshot: Guardamos cuánto valía la hora en ese momento)
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal HourlyRateSnapshot { get; set; }
 
         [Column(TypeName = "decimal(18,2)")]
-        public decimal RegisteredRateSnapshot { get; set; } 
-
-        public string? Notes { get; set; }
+        public decimal TotalCost { get; set; }
     }
 }

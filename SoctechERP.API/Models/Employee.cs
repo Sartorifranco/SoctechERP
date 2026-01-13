@@ -1,54 +1,47 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using SoctechERP.API.Models.Enums;
 
 namespace SoctechERP.API.Models
 {
     public class Employee
     {
         [Key]
-        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid Id { get; set; }
 
-        // --- DATOS PERSONALES ---
-        [Required]
         public string FirstName { get; set; } = string.Empty;
-        
-        [Required]
         public string LastName { get; set; } = string.Empty;
-        
-        [Required]
-        public string CUIL { get; set; } = string.Empty; 
 
-        public DateTime BirthDate { get; set; }
+        // [NotMapped] significa que esto NO se guarda en la base de datos, se calcula al vuelo.
+        // Por eso no podías asignarle valor directamente en el controlador.
+        [NotMapped]
+        public string FullName => $"{LastName}, {FirstName}";
+
+        public string Cuil { get; set; } = string.Empty;
+        
+        // --- NUEVOS CAMPOS ---
+        public string Dni { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
-
-        // --- DATOS CONTRACTUALES ---
-        public DateTime EntryDate { get; set; } // Para antigüedad
-
-        public UnionType Union { get; set; }
-        public PayFrequency Frequency { get; set; }
-
-        // CAMPO PARA SUELDO MANUAL (Fuera de Convenio)
-        [Column(TypeName = "decimal(18,2)")]
-        public decimal? NegotiatedSalary { get; set; }
-
-        // --- CAMBIO CLAVE AQUÍ: AGREGAMOS EL '?' PARA QUE SEA OPCIONAL ---
-        public Guid? WageScaleId { get; set; } 
-        // -----------------------------------------------------------------
+        public string Phone { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
         
-        [ForeignKey("WageScaleId")]
-        public WageScale? WageScale { get; set; }
-
-        // OBRA ASIGNADA ACTUALMENTE
-        public Guid? CurrentProjectId { get; set; } // Puede ser nulo si está en "Base"
-        
-        // (Opcional) Propiedad de navegación si quisieras traer el nombre del proyecto
-        // [ForeignKey("CurrentProjectId")]
-        // public Project? CurrentProject { get; set; }
+        // Guardamos la categoría como texto por defecto si viene del CSV
+        public string Category { get; set; } = "Ayudante"; 
 
         public bool IsActive { get; set; } = true;
+        public DateTime EntryDate { get; set; }
 
-        public string FullName => $"{LastName}, {FirstName}";
+        // 0: UOCRA, 1: UECARA, 2: FDC
+        public int Union { get; set; } 
+        // 0: Quincenal, 1: Mensual
+        public int Frequency { get; set; } 
+
+        // Relaciones
+        public Guid? WageScaleId { get; set; }
+        public WageScale? WageScale { get; set; }
+
+        public Guid? CurrentProjectId { get; set; }
+        public Project? CurrentProject { get; set; }
+        
+        public double? NegotiatedSalary { get; set; }
     }
 }

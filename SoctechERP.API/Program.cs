@@ -26,6 +26,13 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// -------------------------------------------------------------------------
+// ⚠️ CORRECCIÓN AQUÍ: REGISTRAR AMBOS SERVICIOS DE IA
+// -------------------------------------------------------------------------
+builder.Services.AddScoped<SoctechERP.API.Services.AiAssistant>();      // <--- FALTABA ESTE (CHAT)
+builder.Services.AddScoped<SoctechERP.API.Services.AiInvoiceScanner>(); // <--- ESTE YA ESTABA (FACTURAS)
+// -------------------------------------------------------------------------
+
 var app = builder.Build();
 
 // 3. AUTO-MIGRACIÓN
@@ -51,10 +58,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// --- CAMBIO IMPORTANTE AQUÍ ---
-// Comentamos esta línea para evitar el error de redirección de puerto
+// Evitamos redirección HTTPS para simplificar desarrollo local
 // app.UseHttpsRedirection(); 
-// ------------------------------
 
 // Activamos CORS
 app.UseCors("PermitirTodo");

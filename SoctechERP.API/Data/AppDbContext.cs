@@ -65,10 +65,14 @@ namespace SoctechERP.API.Data
             modelBuilder.Entity<Employee>().Property(e => e.NegotiatedSalary).HasPrecision(18, 2);
 
             modelBuilder.Entity<WageScale>().Property(w => w.BasicValue).HasPrecision(18, 2);
-            modelBuilder.Entity<WorkLog>().Property(w => w.RegisteredRateSnapshot).HasPrecision(18, 2);
 
-            //modelBuilder.Entity<ContractorJob>().Property(c => c.AgreedAmount).HasPrecision(18, 2);
-            //modelBuilder.Entity<ContractorJob>().Property(c => c.PaidAmount).HasPrecision(18, 2);
+            // --- CORRECCIÓN AQUÍ ---
+            // Antes decía RegisteredRateSnapshot, ahora es HourlyRateSnapshot
+            modelBuilder.Entity<WorkLog>().Property(w => w.HourlyRateSnapshot).HasPrecision(18, 2);
+            // Agregamos también TotalCost que es nuevo
+            modelBuilder.Entity<WorkLog>().Property(w => w.TotalCost).HasPrecision(18, 2);
+            // -----------------------
+
             modelBuilder.Entity<ContractorJob>().Property(c => c.AgreedAmount).HasPrecision(18, 2);
 
             // Precisiones Facturación Compras

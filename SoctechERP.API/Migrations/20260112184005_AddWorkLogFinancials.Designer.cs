@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SoctechERP.API.Data;
@@ -11,9 +12,11 @@ using SoctechERP.API.Data;
 namespace SoctechERP.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260112184005_AddWorkLogFinancials")]
+    partial class AddWorkLogFinancials
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -321,9 +324,9 @@ namespace SoctechERP.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("CostPrice")
+                    b.Property<double>("CostPrice")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("double precision");
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
@@ -333,16 +336,19 @@ namespace SoctechERP.API.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double>("SalePrice")
+                        .HasColumnType("double precision");
 
                     b.Property<string>("Sku")
-                        .HasColumnType("text");
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
-                    b.Property<decimal>("Stock")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<double>("Stock")
+                        .HasColumnType("double precision");
 
                     b.HasKey("Id");
 
@@ -759,7 +765,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial Especializado",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 13, 16, 53, 59, 170, DateTimeKind.Local).AddTicks(4144),
+                            ValidFrom = new DateTime(2026, 1, 12, 15, 40, 5, 477, DateTimeKind.Local).AddTicks(4063),
                             ZonePercentage = 0.0
                         },
                         new
@@ -769,7 +775,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 13, 16, 53, 59, 170, DateTimeKind.Local).AddTicks(4159),
+                            ValidFrom = new DateTime(2026, 1, 12, 15, 40, 5, 477, DateTimeKind.Local).AddTicks(4081),
                             ZonePercentage = 0.0
                         },
                         new
@@ -779,7 +785,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Medio Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 13, 16, 53, 59, 170, DateTimeKind.Local).AddTicks(4169),
+                            ValidFrom = new DateTime(2026, 1, 12, 15, 40, 5, 477, DateTimeKind.Local).AddTicks(4083),
                             ZonePercentage = 0.0
                         },
                         new
@@ -789,7 +795,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Ayudante",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 13, 16, 53, 59, 170, DateTimeKind.Local).AddTicks(4171),
+                            ValidFrom = new DateTime(2026, 1, 12, 15, 40, 5, 477, DateTimeKind.Local).AddTicks(4085),
                             ZonePercentage = 0.0
                         },
                         new
@@ -799,7 +805,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo A",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 13, 16, 53, 59, 170, DateTimeKind.Local).AddTicks(4173),
+                            ValidFrom = new DateTime(2026, 1, 12, 15, 40, 5, 477, DateTimeKind.Local).AddTicks(4087),
                             ZonePercentage = 0.0
                         },
                         new
@@ -809,7 +815,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo B",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 13, 16, 53, 59, 170, DateTimeKind.Local).AddTicks(4175),
+                            ValidFrom = new DateTime(2026, 1, 12, 15, 40, 5, 477, DateTimeKind.Local).AddTicks(4095),
                             ZonePercentage = 0.0
                         });
                 });

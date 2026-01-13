@@ -1,8 +1,0 @@
-C:\ERP-AMG\SoctechERP.API\obj\Debug\net9.0\SoctechERP.API.csproj.AssemblyReference.cache
-C:\ERP-AMG\SoctechERP.API\obj\Debug\net9.0\rpswa.dswa.cache.json
-C:\ERP-AMG\SoctechERP.API\obj\Debug\net9.0\SoctechERP.API.GeneratedMSBuildEditorConfig.editorconfig
-C:\ERP-AMG\SoctechERP.API\obj\Debug\net9.0\SoctechERP.API.AssemblyInfoInputs.cache
-C:\ERP-AMG\SoctechERP.API\obj\Debug\net9.0\SoctechERP.API.AssemblyInfo.cs
-C:\ERP-AMG\SoctechERP.API\obj\Debug\net9.0\SoctechERP.API.csproj.CoreCompileInputs.cache
-C:\ERP-AMG\SoctechERP.API\obj\Debug\net9.0\SoctechERP.API.MvcApplicationPartsAssemblyInfo.cs
-C:\ERP-AMG\SoctechERP.API\obj\Debug\net9.0\SoctechERP.API.MvcApplicationPartsAssemblyInfo.cache

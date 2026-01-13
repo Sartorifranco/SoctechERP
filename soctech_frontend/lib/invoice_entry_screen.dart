@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io'; 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart'; 
 
 class InvoiceEntryScreen extends StatefulWidget {
   const InvoiceEntryScreen({super.key});
@@ -14,14 +16,14 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
   // Datos Maestros
   List<dynamic> providers = [];
   List<dynamic> purchaseOrders = [];
-  List<dynamic> projects = []; // Para imputar costos
+  List<dynamic> projects = []; 
   
   bool isLoading = true;
   bool isSaving = false;
 
   // Selecciones
   String? selectedProviderId;
-  String? selectedOrderId; // La clave del 3-Way Match
+  String? selectedOrderId; 
   String? selectedProjectId;
 
   // Controladores
@@ -42,7 +44,6 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
     super.initState();
     loadMasterData();
     
-    // Listeners para recalcular total en tiempo real
     _netAmountCtrl.addListener(_calculateTotal);
     _vatAmountCtrl.addListener(_calculateTotal);
     _taxesAmountCtrl.addListener(_calculateTotal);
@@ -61,7 +62,6 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
           providers = json.decode(responses[0].body);
           purchaseOrders = json.decode(responses[1].body);
           
-          // Filtramos solo obras activas
           projects = json.decode(responses[2].body)
               .where((p) => p['isActive'] == true)
               .toList();
@@ -75,8 +75,6 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
     }
   }
 
-  // --- LÓGICA INTELLIGENT MATCH ---
-  // Al elegir una Orden de Compra, autocompletamos los valores
   void onOrderSelected(String? orderId) {
     setState(() {
       selectedOrderId = orderId;
@@ -85,10 +83,7 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
     if (orderId != null) {
       final order = purchaseOrders.firstWhere((o) => o['id'] == orderId);
       
-      // La "Magia" de Oracle: Traemos los datos para evitar tipear
       double totalOrden = (order['totalAmount'] ?? 0).toDouble();
-      
-      // Estimación simple de IVA (Generalmente 21% en construcción)
       double netoEstimado = totalOrden / 1.21;
       double ivaEstimado = totalOrden - netoEstimado;
 
@@ -96,7 +91,6 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
       _vatAmountCtrl.text = ivaEstimado.toStringAsFixed(2);
       _taxesAmountCtrl.text = "0.00";
       
-      // Feedback visual
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Datos importados de la Orden #${order['orderNumber']}"),
@@ -117,6 +111,78 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
     });
   }
 
+  // --- FUNCIÓN DE ESCANEO IA (CORREGIDA) ---
+  Future<void> scanInvoiceWithAI() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery); 
+    
+    if (image == null) return; 
+
+    setState(() => isLoading = true);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🤖 La IA está analizando el comprobante...")));
+
+    try {
+      // -----------------------------------------------------------------------
+      // ✅ CORRECCIÓN AQUÍ: Apuntamos al nuevo controlador 'api/Ai/scan-invoice'
+      // -----------------------------------------------------------------------
+      var request = http.MultipartRequest('POST', Uri.parse('http://localhost:5064/api/Ai/scan-invoice'));
+      request.files.add(await http.MultipartFile.fromPath('file', image.path));
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        setState(() {
+          // Numero de factura
+          if (data['invoiceNumber'] != null) {
+             _invoiceNumCtrl.text = data['invoiceNumber'];
+          }
+          
+          // Fecha
+          if (data['date'] != null) {
+            try {
+               selectedDate = DateTime.parse(data['date']);
+            } catch(e) {
+               print("No se pudo parsear fecha IA");
+            }
+          }
+
+          // Montos
+          _netAmountCtrl.text = (data['netAmount'] ?? 0).toString();
+          _vatAmountCtrl.text = (data['vatAmount'] ?? 0).toString();
+          
+          // INTELIGENCIA DE PROVEEDOR
+          String aiProviderName = (data['providerName'] ?? "").toString().toLowerCase();
+          if (aiProviderName.isNotEmpty) {
+             try {
+               var match = providers.firstWhere(
+                 (p) => aiProviderName.contains(p['name'].toString().toLowerCase()) || 
+                        p['name'].toString().toLowerCase().contains(aiProviderName)
+               );
+               selectedProviderId = match['id'];
+             } catch (e) {
+               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Proveedor '${data['providerName']}' no reconocido. Seleccione manualmente.")));
+             }
+          }
+
+          isLoading = false;
+        });
+        
+        _calculateTotal();
+
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Datos extraídos correctamente"), backgroundColor: Colors.green));
+
+      } else {
+        throw Exception("Error del servidor: ${response.statusCode} - ${response.body}");
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Error IA"), content: Text(e.toString())));
+    }
+  }
+
   Future<void> saveInvoice() async {
     if (selectedProviderId == null || _invoiceNumCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Faltan datos obligatorios (Proveedor o Nro Factura)")));
@@ -131,13 +197,13 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
       "dueDate": selectedDueDate.toIso8601String(),
       "providerId": selectedProviderId,
       "providerName": providers.firstWhere((p) => p['id'] == selectedProviderId)['name'],
-      "relatedPurchaseOrderId": selectedOrderId, // El vínculo clave
-      "projectId": selectedProjectId, // Imputación de costo
+      "relatedPurchaseOrderId": selectedOrderId, 
+      "projectId": selectedProjectId, 
       "netAmount": double.parse(_netAmountCtrl.text),
       "vatAmount": double.parse(_vatAmountCtrl.text),
       "otherTaxes": double.parse(_taxesAmountCtrl.text),
       "totalAmount": totalCalculated,
-      "status": "Draft" // Nace como borrador para revisión
+      "status": "Draft" 
     };
 
     try {
@@ -148,7 +214,6 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
       );
 
       if (response.statusCode == 201) {
-        // Éxito: Volvemos atrás o limpiamos
         if (mounted) {
            final created = json.decode(response.body);
            String statusMsg = created['status'] == "Flagged" 
@@ -169,7 +234,6 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
     }
   }
 
-  // Helper para filtrar OCs por proveedor
   List<dynamic> getProviderOrders() {
     if (selectedProviderId == null) return [];
     return purchaseOrders.where((o) => o['providerId'] == selectedProviderId && o['status'] != 'Finished').toList();
@@ -180,15 +244,24 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Carga de Comprobantes"),
-        backgroundColor: Colors.indigo.shade900, // Color "Corporate"
+        backgroundColor: Colors.indigo.shade900, 
         foregroundColor: Colors.white,
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: scanInvoiceWithAI,
+        backgroundColor: Colors.teal,
+        icon: const Icon(Icons.auto_awesome, color: Colors.white),
+        label: const Text("ESCANEAR (IA)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat, 
+
       body: isLoading 
         ? const Center(child: CircularProgressIndicator())
         : SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 80), 
             child: Column(
               children: [
-                // --- SECCIÓN 1: ENCABEZADO (PROVEEDOR & MATCH) ---
+                // --- SECCIÓN 1: ENCABEZADO ---
                 Container(
                   padding: const EdgeInsets.all(20),
                   color: Colors.indigo.shade50,
@@ -209,13 +282,12 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
                         onChanged: (val) {
                           setState(() {
                             selectedProviderId = val;
-                            selectedOrderId = null; // Reset orden
+                            selectedOrderId = null; 
                           });
                         },
                       ),
                       const SizedBox(height: 15),
                       
-                      // SELECTOR INTELIGENTE DE ORDEN DE COMPRA
                       Row(
                         children: [
                           Expanded(
@@ -229,11 +301,10 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
                                 helperText: selectedProviderId == null ? "Seleccione proveedor primero" : null
                               ),
                               value: selectedOrderId,
-                              // Solo mostramos las OCs del proveedor seleccionado
                               items: getProviderOrders().map<DropdownMenuItem<String>>((o) {
                                 return DropdownMenuItem(value: o['id'], child: Text("OC #${o['orderNumber']} - ${currencyFormat.format(o['totalAmount'])}"));
                               }).toList(),
-                              onChanged: onOrderSelected, // <--- AQUÍ OCURRE LA MAGIA
+                              onChanged: onOrderSelected, 
                               disabledHint: const Text("Sin Órdenes Pendientes"),
                             ),
                           ),
@@ -286,7 +357,7 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // --- SECCIÓN 3: IMPORTES (CON DISEÑO DE TARJETA) ---
+                      // --- SECCIÓN 3: IMPORTES ---
                       Card(
                         elevation: 4,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -343,7 +414,6 @@ class _InvoiceEntryScreenState extends State<InvoiceEntryScreen> {
     );
   }
 
-  // Widgets Auxiliares para limpiar código
   Widget _datePickerField(String label, DateTime current, Function(DateTime) onSelect) {
     return InkWell(
       onTap: () async {
