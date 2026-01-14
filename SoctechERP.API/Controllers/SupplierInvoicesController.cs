@@ -16,11 +16,41 @@ namespace SoctechERP.API.Controllers
             _context = context;
         }
 
-        // GET: api/SupplierInvoices
+        // GET: api/SupplierInvoices (AHORA TRAE INFO DE LA ORDEN DE COMPRA)
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<SupplierInvoice>>> GetInvoices()
+        public async Task<ActionResult<IEnumerable<object>>> GetInvoices()
         {
-            return await _context.SupplierInvoices.OrderByDescending(i => i.InvoiceDate).ToListAsync();
+            var invoices = await _context.SupplierInvoices
+                .OrderByDescending(i => i.InvoiceDate)
+                .Select(i => new 
+                {
+                    i.Id,
+                    i.InvoiceNumber,
+                    i.ProviderName,
+                    i.InvoiceDate,
+                    i.DueDate,
+                    i.TotalAmount,
+                    i.NetAmount,
+                    i.VatAmount,
+                    i.Status,
+                    i.RelatedPurchaseOrderId,
+                    
+                    // --- DATOS EXTRA PARA LA COMPARATIVA ---
+                    // Buscamos cuánto era el total original de la OC
+                    PurchaseOrderTotal = _context.PurchaseOrders
+                                         .Where(po => po.Id == i.RelatedPurchaseOrderId)
+                                         .Select(po => po.TotalAmount)
+                                         .FirstOrDefault(),
+                                         
+                    // Buscamos el número de la OC
+                    PurchaseOrderNumber = _context.PurchaseOrders
+                                          .Where(po => po.Id == i.RelatedPurchaseOrderId)
+                                          .Select(po => po.OrderNumber)
+                                          .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            return Ok(invoices);
         }
 
         // POST: api/SupplierInvoices
@@ -29,7 +59,6 @@ namespace SoctechERP.API.Controllers
         {
             if (invoice.ProviderId == Guid.Empty) return BadRequest("Falta el Proveedor");
 
-            // 1. LÓGICA "3-WAY MATCH"
             if (invoice.RelatedPurchaseOrderId != null)
             {
                 var order = await _context.PurchaseOrders
@@ -42,11 +71,10 @@ namespace SoctechERP.API.Controllers
                     
                     if (difference > 1000) 
                     {
-                        invoice.Status = "Flagged"; // Diferencia de precio
+                        invoice.Status = "Flagged"; // OBSERVADA
                     }
                     else
                     {
-                        // --- ACTUALIZACIÓN DE STOCK AUTOMÁTICA ---
                         invoice.Status = "Approved"; 
                         order.Status = "Finished";
 
@@ -55,10 +83,7 @@ namespace SoctechERP.API.Controllers
                             var product = await _context.Products.FindAsync(item.ProductId);
                             if (product != null)
                             {
-                                // CORRECCIÓN 1: Usamos .Stock (coincide con el modelo)
-                                // CORRECCIÓN 2: Agregamos (decimal) para evitar el error de tipos
                                 product.Stock += (decimal)item.Quantity; 
-                                
                                 product.CostPrice = item.UnitPrice; 
                             }
                         }
@@ -92,6 +117,62 @@ namespace SoctechERP.API.Controllers
                                       .OrderByDescending(x => x.TotalDebt)
                                       .ToListAsync();
              return debt;
+        }
+
+        // DELETE
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteInvoice(Guid id)
+        {
+            var invoice = await _context.SupplierInvoices.FindAsync(id);
+            if (invoice == null) return NotFound("Factura no encontrada");
+
+            if (invoice.Status == "Approved")
+                return BadRequest("No se puede eliminar una factura ya Aprobada. Use Nota de Crédito.");
+
+            _context.SupplierInvoices.Remove(invoice);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Factura eliminada correctamente." });
+        }
+
+        // PUT: FORZAR APROBACIÓN
+        [HttpPut("{id}/approve")]
+        public async Task<IActionResult> ForceApproveInvoice(Guid id)
+        {
+            var invoice = await _context.SupplierInvoices.FindAsync(id);
+            if (invoice == null) return NotFound("Factura no encontrada");
+
+            if (invoice.Status == "Approved")
+                return BadRequest("Esta factura ya está aprobada.");
+
+            invoice.Status = "Approved";
+
+            if (invoice.RelatedPurchaseOrderId != null)
+            {
+                var order = await _context.PurchaseOrders
+                                          .Include(po => po.Items)
+                                          .FirstOrDefaultAsync(o => o.Id == invoice.RelatedPurchaseOrderId);
+
+                if (order != null)
+                {
+                    if (order.Status != "Finished")
+                    {
+                        order.Status = "Finished";
+                        foreach (var item in order.Items)
+                        {
+                            var product = await _context.Products.FindAsync(item.ProductId);
+                            if (product != null)
+                            {
+                                product.Stock += (decimal)item.Quantity;
+                                product.CostPrice = item.UnitPrice;
+                            }
+                        }
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Factura aprobada manualmente y stock actualizado." });
         }
     }
 }

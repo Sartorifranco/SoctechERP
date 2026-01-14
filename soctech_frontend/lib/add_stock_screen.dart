@@ -10,14 +10,20 @@ class AddStockScreen extends StatefulWidget {
 }
 
 class _AddStockScreenState extends State<AddStockScreen> {
+  // 1. CONFIGURACIÓN DE RED SEGURA
+  final String baseUrl = 'http://127.0.0.1:5064/api';
+
   final _quantityController = TextEditingController();
-  final _costController = TextEditingController(); // Nuevo: Para actualizar el precio de costo
+  final _costController = TextEditingController();
+  final _referenceController = TextEditingController(); // Para N° de Factura/Remito
+
   bool isSaving = false;
+  bool isLoading = true;
   
   List<dynamic> products = [];
   String? selectedProductId;
   
-  // Variables para mostrar info del producto seleccionado
+  // Variables visuales
   double currentStock = 0;
   double currentCost = 0;
 
@@ -28,19 +34,32 @@ class _AddStockScreenState extends State<AddStockScreen> {
   }
 
   Future<void> loadProducts() async {
+    setState(() => isLoading = true);
     try {
-      final response = await http.get(Uri.parse('http://localhost:5064/api/Products'));
+      final response = await http.get(Uri.parse('$baseUrl/Products'));
+      
       if (response.statusCode == 200) {
-        setState(() {
-          products = json.decode(response.body);
-        });
+        // 2. DECODIFICACIÓN SEGURA
+        final List<dynamic> data = json.decode(response.body) as List<dynamic>;
+        
+        if (mounted) {
+          setState(() {
+            products = data;
+            isLoading = false;
+          });
+        }
+      } else {
+        throw Exception("Error ${response.statusCode}");
       }
     } catch (e) {
       print("Error cargando productos: $e");
+      if (mounted) {
+        setState(() => isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
+      }
     }
   }
 
-  // Al seleccionar un producto, actualizamos los campos
   void onProductSelected(String? id) {
     if (id == null) return;
     
@@ -50,57 +69,52 @@ class _AddStockScreenState extends State<AddStockScreen> {
       currentStock = (prod['stock'] ?? 0).toDouble();
       currentCost = (prod['costPrice'] ?? 0).toDouble();
       
-      // Pre-llenamos el costo con el valor actual (por si no cambió)
+      // Pre-llenamos el costo
       _costController.text = currentCost.toString();
     });
   }
 
   Future<void> saveEntry() async {
     if (selectedProductId == null || _quantityController.text.isEmpty || _costController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Completa todos los campos")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Completa todos los campos obligatorios")));
       return;
     }
 
     setState(() => isSaving = true);
 
-    // IDs DE EMPRESA (Hardcodeados por ahora)
-    const String companyId = "3fa85f64-5717-4562-b3fc-2c963f66afa6"; 
-    const String branchId = "9c9d8c46-970e-4647-83e9-8c084f771982"; 
-
     double quantity = double.tryParse(_quantityController.text) ?? 0;
     double newCost = double.tryParse(_costController.text) ?? 0;
 
-    // Movimiento de COMPRA (PURCHASE)
+    // 3. OBJETO DE MOVIMIENTO LIMPIO (Sin IDs de empresa conflictivos)
     final movement = {
-      "companyId": companyId,
-      "branchId": branchId,
       "productId": selectedProductId,
-      "projectId": null, // En una compra, no va a una obra específica todavía
+      "projectId": null, 
       "movementType": "PURCHASE",
-      "quantity": quantity, // Positivo porque entra
+      "quantity": quantity, 
       "unitCost": newCost, 
       "date": DateTime.now().toIso8601String(),
-      "reference": "Compra de Materiales"
+      "reference": _referenceController.text.isEmpty ? "Ingreso Manual" : _referenceController.text
     };
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:5064/api/StockMovements'),
+        Uri.parse('$baseUrl/StockMovements'),
         headers: {"Content-Type": "application/json"},
         body: json.encode(movement),
       );
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡Stock actualizado correctamente!")));
-          Navigator.pop(context, true); 
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ ¡Stock ingresado correctamente!"), backgroundColor: Colors.green));
+          Navigator.pop(context, true); // Vuelve atrás y avisa que actualice
         }
       } else {
-        throw Exception("Error ${response.statusCode}");
+        // Si falla, mostramos el mensaje exacto del servidor para debuguear
+        throw Exception("Error del servidor (${response.statusCode}): ${response.body}");
       }
     } catch (e) {
       setState(() => isSaving = false);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
     }
   }
 
@@ -109,97 +123,115 @@ class _AddStockScreenState extends State<AddStockScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Ingresar Mercadería"),
-        backgroundColor: Colors.green[700], // Verde porque entra dinero/material
+        backgroundColor: Colors.green[700],
         foregroundColor: Colors.white,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // --- DROPDOWN PRODUCTOS ---
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: "Producto a Ingresar",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.inventory),
-              ),
-              items: products.map<DropdownMenuItem<String>>((prod) {
-                return DropdownMenuItem<String>(
-                  value: prod['id'],
-                  child: Text(prod['name']),
-                );
-              }).toList(),
-              onChanged: onProductSelected,
-            ),
-            const SizedBox(height: 10),
-            
-            // Info rápida del stock actual
-            if (selectedProductId != null)
-              Container(
-                padding: const EdgeInsets.all(10),
-                color: Colors.blue.shade50,
-                child: Row(
+      body: isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // --- PRODUCTO ---
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: "Producto a Ingresar",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.inventory),
+                  ),
+                  value: selectedProductId, // Mantiene la selección si recarga
+                  items: products.map<DropdownMenuItem<String>>((prod) {
+                    return DropdownMenuItem<String>(
+                      value: prod['id'],
+                      child: Text(prod['name']),
+                    );
+                  }).toList(),
+                  onChanged: onProductSelected,
+                ),
+                const SizedBox(height: 10),
+                
+                // --- INFO STOCK ---
+                if (selectedProductId != null)
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200)
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Colors.blue),
+                        const SizedBox(width: 10),
+                        Text("Stock actual: $currentStock | Costo actual: \$$currentCost", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 20),
+
+                // --- FILA DE DATOS ---
+                Row(
                   children: [
-                    const Icon(Icons.info_outline, color: Colors.blue),
-                    const SizedBox(width: 10),
-                    Text("Stock actual: $currentStock unidades"),
+                    Expanded(
+                      child: TextField(
+                        controller: _quantityController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: "Cantidad",
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.add_box),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: _costController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: "Costo Unitario",
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.attach_money),
+                          helperText: "Actualiza el PPP"
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 20),
 
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                // --- CANTIDAD ---
-                Expanded(
-                  child: TextField(
-                    controller: _quantityController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: "Cantidad Entrante",
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.add_box),
-                    ),
+                // --- REFERENCIA ---
+                TextField(
+                  controller: _referenceController,
+                  decoration: const InputDecoration(
+                    labelText: "Referencia / Factura N°",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.receipt_long),
                   ),
                 ),
-                const SizedBox(width: 16),
-                // --- NUEVO COSTO ---
-                Expanded(
-                  child: TextField(
-                    controller: _costController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: "Precio de Costo",
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.attach_money),
-                      helperText: "Actualiza el valor"
+                const SizedBox(height: 30),
+
+                // --- BOTÓN ---
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: isSaving ? null : saveEntry,
+                    icon: isSaving 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                      : const Icon(Icons.save_alt),
+                    label: const Text("REGISTRAR INGRESO", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700], 
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
                     ),
                   ),
-                ),
+                )
               ],
             ),
-            const SizedBox(height: 24),
-
-            // --- BOTÓN GUARDAR ---
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: isSaving ? null : saveEntry,
-                icon: isSaving 
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) 
-                  : const Icon(Icons.save_alt),
-                label: const Text("REGISTRAR INGRESO"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[700], 
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            )
-          ],
-        ),
-      ),
+          ),
     );
   }
 }

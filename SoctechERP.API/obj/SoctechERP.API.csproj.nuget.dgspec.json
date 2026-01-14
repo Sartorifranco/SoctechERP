@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\ERP-AMG\\SoctechERP.API\\SoctechERP.API.csproj": {}
+    "c:\\ERP-AMG\\SoctechERP.API\\SoctechERP.API.csproj": {}
   },
   "projects": {
-    "C:\\ERP-AMG\\SoctechERP.API\\SoctechERP.API.csproj": {
+    "c:\\ERP-AMG\\SoctechERP.API\\SoctechERP.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\ERP-AMG\\SoctechERP.API\\SoctechERP.API.csproj",
+        "projectUniqueName": "c:\\ERP-AMG\\SoctechERP.API\\SoctechERP.API.csproj",
         "projectName": "SoctechERP.API",
-        "projectPath": "C:\\ERP-AMG\\SoctechERP.API\\SoctechERP.API.csproj",
+        "projectPath": "c:\\ERP-AMG\\SoctechERP.API\\SoctechERP.API.csproj",
         "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
-        "outputPath": "C:\\ERP-AMG\\SoctechERP.API\\obj\\",
+        "outputPath": "c:\\ERP-AMG\\SoctechERP.API\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Admin\\AppData\\Roaming\\NuGet\\NuGet.Config",

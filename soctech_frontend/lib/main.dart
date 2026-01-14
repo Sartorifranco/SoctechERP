@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-// --- IMPORTS DE TUS PANTALLAS ---
+// --- IMPORTS CORREGIDOS SEGÚN TU ESTRUCTURA DE CARPETAS ---
+// La mayoría están en la raíz de lib/, así que les quitamos el "screens/"
 import 'dashboard_screen.dart';
 import 'projects_screen.dart';      
 import 'products_screen.dart';      
@@ -8,23 +9,19 @@ import 'providers_screen.dart';
 import 'employees_screen.dart';     
 import 'work_logs_screen.dart';     
 import 'add_stock_screen.dart';     
-import 'consume_stock_screen.dart'; 
 import 'history_screen.dart';       
 import 'mass_attendance_screen.dart'; 
 import 'project_costs_screen.dart';   
 import 'contractors_screen.dart';     
 import 'purchase_orders_screen.dart'; 
-
-// --- IMPORTS DE ADMINISTRACIÓN ---
 import 'invoice_entry_screen.dart';   
 import 'invoice_list_screen.dart';    
-
-// --- IMPORTS DE VENTAS ---
 import 'sales_invoice_screen.dart';      
 import 'sales_invoice_list_screen.dart'; 
-
-// --- IMPORTS DE TESORERÍA ---
 import 'treasury_screen.dart';           
+
+// --- ESTE ES EL ÚNICO QUE SÍ ESTÁ EN LA CARPETA SCREENS ---
+import 'screens/dispatch_screen.dart'; 
 
 void main() {
   runApp(const SoctechERP());
@@ -36,12 +33,11 @@ class SoctechERP extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Soctech ERP',
+      title: 'Soctech prueba suprema',
       debugShowCheckedModeBanner: false, 
       theme: ThemeData(
         primarySwatch: Colors.indigo,
         useMaterial3: true,
-        // Ajustes para que se sienta más "Desktop"
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
       home: const MainLayout(),
@@ -60,14 +56,11 @@ class _MainLayoutState extends State<MainLayout> {
   Widget _currentScreen = const DashboardScreen();
   String _currentTitle = "Tablero de Control";
 
-  // Esta función ahora solo actualiza el estado, no cierra el drawer manualmente
-  // porque en Desktop el drawer no existe (es fijo).
   void _navigateTo(Widget screen, String title) {
     setState(() {
       _currentScreen = screen;
       _currentTitle = title;
     });
-    // Solo cerramos el drawer si estamos en modo movil
     if (MediaQuery.of(context).size.width < 800) {
       Navigator.pop(context); 
     }
@@ -75,30 +68,25 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    // Detectamos el ancho de la pantalla
     final width = MediaQuery.of(context).size.width;
-    final bool isDesktop = width >= 800; // Punto de quiebre para considerar PC
+    final bool isDesktop = width >= 800;
 
     return Scaffold(
-      // En Desktop, NO usamos AppBar arriba con menu hamburguesa
       appBar: isDesktop 
           ? null 
           : AppBar(title: Text(_currentTitle), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
       
-      // En Movil, usamos Drawer. En Desktop es null.
       drawer: isDesktop ? null : Drawer(child: AppMenu(onNavigate: _navigateTo)),
       
       body: Row(
         children: [
-          // 1. SI ES DESKTOP: Mostramos el Sidebar Fijo a la izquierda
           if (isDesktop)
             SizedBox(
-              width: 270, // Ancho del menú lateral
+              width: 270, 
               child: Container(
-                color: Colors.white, // Fondo del menú
+                color: Colors.white, 
                 child: Column(
                   children: [
-                    // Header del Sidebar
                     Container(
                       height: 150,
                       color: Colors.indigo.shade900,
@@ -114,7 +102,6 @@ class _MainLayoutState extends State<MainLayout> {
                         ],
                       ),
                     ),
-                    // La lista de opciones
                     Expanded(
                       child: AppMenu(onNavigate: _navigateTo),
                     ),
@@ -125,11 +112,9 @@ class _MainLayoutState extends State<MainLayout> {
           
           if (isDesktop) const VerticalDivider(width: 1, thickness: 1, color: Colors.grey),
 
-          // 2. EL CONTENIDO PRINCIPAL
           Expanded(
             child: Column(
               children: [
-                // En Desktop, agregamos una "TopBar" personalizada ya que quitamos el AppBar
                 if (isDesktop)
                   Container(
                     height: 60,
@@ -152,7 +137,6 @@ class _MainLayoutState extends State<MainLayout> {
                   ),
                 if (isDesktop) const Divider(height: 1),
                 
-                // La pantalla real
                 Expanded(child: _currentScreen),
               ],
             ),
@@ -163,7 +147,6 @@ class _MainLayoutState extends State<MainLayout> {
   }
 }
 
-// --- WIDGET DEL MENÚ (Extraído para reusar en Movil y Desktop) ---
 class AppMenu extends StatelessWidget {
   final Function(Widget, String) onNavigate;
 
@@ -171,10 +154,11 @@ class AppMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // IMPORTANTE: Quitamos 'const' de la lista porque los Navigator.push no son constantes
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        if (MediaQuery.of(context).size.width < 800) // Solo mostrar header en movil (en desktop ya lo pusimos fijo arriba)
+        if (MediaQuery.of(context).size.width < 800)
           const UserAccountsDrawerHeader(
             accountName: Text("Admin Soctech"),
             accountEmail: Text("admin@soctech.com"),
@@ -185,7 +169,11 @@ class AppMenu extends StatelessWidget {
         _sectionTitle("OPERACIONES"),
         _menuItem(Icons.dashboard, 'Tablero de Control', () => onNavigate(const DashboardScreen(), "Tablero de Control")),
         _menuItem(Icons.add_shopping_cart, 'Entrada Mercadería', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AddStockScreen())), color: Colors.green),
-        _menuItem(Icons.output, 'Salida / Consumo', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ConsumeStockScreen())), color: Colors.redAccent),
+        
+        // --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE ---
+        _menuItem(Icons.output, 'Salida / Consumo', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DispatchScreen())), color: Colors.redAccent),
+        // -------------------------------------
+
         _menuItem(Icons.playlist_add_check_circle, 'Parte Diario Masivo', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const MassAttendanceScreen()))),
         _menuItem(Icons.history_edu, 'Auditoría de Stock', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const HistoryScreen()))),
         _menuItem(Icons.timer, 'Carga de Horas', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const WorkLogsScreen()))),
@@ -228,7 +216,7 @@ class AppMenu extends StatelessWidget {
     return ListTile(
       leading: Icon(icon, color: color ?? Colors.grey[700], size: 22),
       title: Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[800])),
-      dense: true, // Hace los items más compactos, mejor para Desktop
+      dense: true,
       onTap: onTap,
     );
   }

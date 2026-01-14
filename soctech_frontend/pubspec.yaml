@@ -39,6 +39,10 @@ dependencies:
   fl_chart: ^1.1.1
   image_picker: ^1.2.1
   file_picker: ^10.3.8
+  pdf: ^3.10.0
+  printing: ^5.11.0
+  path_provider: ^2.1.2   # <--- AGREGAR
+  open_file: ^3.3.2       # <--- AGREGAR
 
 dev_dependencies:
   flutter_test:
