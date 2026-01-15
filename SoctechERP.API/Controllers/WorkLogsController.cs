@@ -17,14 +17,23 @@ namespace SoctechERP.API.Controllers
         }
 
         // GET: api/WorkLogs
+        // GET: api/WorkLogs?projectId=...
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<WorkLog>>> GetWorkLogs()
+        public async Task<ActionResult<IEnumerable<WorkLog>>> GetWorkLogs([FromQuery] Guid? projectId)
         {
-            return await _context.WorkLogs
+            // Empezamos la consulta
+            var query = _context.WorkLogs
                 .Include(w => w.Employee)
-                .Include(w => w.Project) // Ahora sí existe Project
-                .OrderByDescending(w => w.Date)
-                .ToListAsync();
+                .Include(w => w.Project)
+                .AsQueryable();
+
+            // Si nos mandaron un ID de proyecto, filtramos. Si no, devolvemos todo.
+            if (projectId.HasValue)
+            {
+                query = query.Where(w => w.ProjectId == projectId.Value);
+            }
+
+            return await query.OrderByDescending(w => w.Date).ToListAsync();
         }
 
         // POST: api/WorkLogs

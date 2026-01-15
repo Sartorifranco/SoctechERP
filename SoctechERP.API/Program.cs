@@ -1,4 +1,7 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using SoctechERP.API.Data;
 
 // Configuración para fechas (PostgreSQL)
@@ -22,20 +25,37 @@ builder.Services.AddCors(options =>
     });
 });
 
+// 3. CONFIGURACIÓN DE SEGURIDAD (JWT) - ¡NUEVO!
+var key = Encoding.ASCII.GetBytes("ESTA_ES_MI_CLAVE_SECRETA_SUPER_SEGURA_123456"); // Misma clave que en AuthController
+builder.Services.AddAuthentication(x =>
+{
+    x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(x =>
+{
+    x.RequireHttpsMetadata = false;
+    x.SaveToken = true;
+    x.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = false,
+        ValidateAudience = false
+    };
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// -------------------------------------------------------------------------
-// ⚠️ CORRECCIÓN AQUÍ: REGISTRAR AMBOS SERVICIOS DE IA
-// -------------------------------------------------------------------------
-builder.Services.AddScoped<SoctechERP.API.Services.AiAssistant>();      // <--- FALTABA ESTE (CHAT)
-builder.Services.AddScoped<SoctechERP.API.Services.AiInvoiceScanner>(); // <--- ESTE YA ESTABA (FACTURAS)
-// -------------------------------------------------------------------------
+// 4. SERVICIOS DE INTELIGENCIA ARTIFICIAL (Inyección de Dependencias)
+builder.Services.AddScoped<SoctechERP.API.Services.AiAssistant>();      // Chatbot
+builder.Services.AddScoped<SoctechERP.API.Services.AiInvoiceScanner>(); // Escáner de Facturas
 
 var app = builder.Build();
 
-// 3. AUTO-MIGRACIÓN
+// 5. AUTO-MIGRACIÓN (Crea la DB y tablas nuevas automáticamente al iniciar)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -51,20 +71,19 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 4. Configurar Swagger
+// 6. Configurar Swagger
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Evitamos redirección HTTPS para simplificar desarrollo local
-// app.UseHttpsRedirection(); 
-
 // Activamos CORS
 app.UseCors("PermitirTodo");
 
-app.UseAuthorization();
+// 7. ACTIVAR SEGURIDAD (Orden importante: Auth -> Authorize)
+app.UseAuthentication(); // Identifica quién eres
+app.UseAuthorization();  // Verifica qué puedes hacer
 
 app.MapControllers();
 

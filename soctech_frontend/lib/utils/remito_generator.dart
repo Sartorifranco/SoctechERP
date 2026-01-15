@@ -89,20 +89,14 @@ class RemitoGenerator {
         ),
       );
 
-      // --- GUARDAR Y ABRIR (NUEVA LÓGICA) ---
-      // 1. Obtener carpeta de documentos
+      // --- GUARDAR Y ABRIR ---
       final output = await getApplicationDocumentsDirectory();
-      
-      // 2. Crear nombre único
       final fileName = "Remito_${dispatchData['dispatchNumber'] ?? 'temp'}_${DateTime.now().millisecondsSinceEpoch}.pdf";
       final file = File("${output.path}/$fileName");
 
-      // 3. Escribir archivo
       await file.writeAsBytes(await doc.save());
 
       print("✅ PDF Guardado en: ${file.path}");
-
-      // 4. Abrir archivo automáticamente
       await OpenFile.open(file.path);
 
     } catch (e) {

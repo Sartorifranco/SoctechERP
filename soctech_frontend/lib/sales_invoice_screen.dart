@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+// IMPORT CRÍTICO: Usamos el nombre de tu paquete para encontrar el archivo sin importar dónde estés
+import 'package:soctech_frontend/utils/invoice_generator.dart';
 
 class SalesInvoiceScreen extends StatefulWidget {
   const SalesInvoiceScreen({super.key});
@@ -43,7 +45,8 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen> {
 
   Future<void> loadProjects() async {
     try {
-      final res = await http.get(Uri.parse('http://localhost:5064/api/Projects'));
+      // IP Segura para Windows/Android
+      final res = await http.get(Uri.parse('http://127.0.0.1:5064/api/Projects'));
       if (res.statusCode == 200) {
         setState(() {
           projects = json.decode(res.body).where((p) => p['isActive'] == true).toList();
@@ -76,7 +79,8 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen> {
     
     setState(() => isSaving = true);
 
-    final invoice = {
+    // Creamos el mapa de datos que sirve tanto para el Backend como para el PDF
+    final invoiceData = {
       "clientName": _clientNameCtrl.text,
       "clientCuit": _cuitCtrl.text,
       "projectId": selectedProjectId,
@@ -84,24 +88,36 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen> {
       "netAmount": double.parse(_netAmountCtrl.text),
       "vatPercentage": vatPercentage,
       "retainagePercentage": retainagePercentage,
-      // Los otros montos los recalcula el backend para seguridad
+      // Los calculados para el PDF local (aunque el backend recalcula, los mandamos al PDF directo)
+      "vatAmount": calcVat,
+      "grossTotal": calcTotal,
+      "retainageAmount": calcRetainage,
+      "collectibleAmount": calcCollectible
     };
 
     try {
       final res = await http.post(
-        Uri.parse('http://localhost:5064/api/SalesInvoices'),
+        Uri.parse('http://127.0.0.1:5064/api/SalesInvoices'),
         headers: {"Content-Type": "application/json"},
-        body: json.encode(invoice)
+        body: json.encode(invoiceData)
       );
 
       if (res.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Factura Emitida y Registrada"), backgroundColor: Colors.green));
-        Navigator.pop(context);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Factura Emitida y Registrada"), backgroundColor: Colors.green));
+          
+          // --- AQUÍ OCURRE LA MAGIA DEL PDF ---
+          await InvoiceGenerator.generate(invoiceData);
+          
+          Navigator.pop(context); // Volver al dashboard
+        }
+      } else {
+        throw Exception("Error del servidor: ${res.statusCode}");
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
     } finally {
-      setState(() => isSaving = false);
+      if (mounted) setState(() => isSaving = false);
     }
   }
 
@@ -236,8 +252,10 @@ class _SalesInvoiceScreenState extends State<SalesInvoiceScreen> {
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
                     onPressed: isSaving ? null : emitInvoice,
-                    icon: const Icon(Icons.print),
-                    label: const Text("EMITIR FACTURA"),
+                    icon: isSaving 
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                      : const Icon(Icons.print),
+                    label: const Text("EMITIR FACTURA Y PDF"),
                   ),
                 )
               ],

@@ -34,8 +34,8 @@ class _MassAttendanceScreenState extends State<MassAttendanceScreen> {
 
   Future<void> fetchData() async {
     try {
-      final resEmp = await http.get(Uri.parse('http://localhost:5064/api/Employees'));
-      final resProj = await http.get(Uri.parse('http://localhost:5064/api/Projects'));
+      final resEmp = await http.get(Uri.parse('http://127.0.0.1:5064/api/Employees'));
+      final resProj = await http.get(Uri.parse('http://127.0.0.1:5064/api/Projects'));
 
       if (resEmp.statusCode == 200 && resProj.statusCode == 200) {
         setState(() {

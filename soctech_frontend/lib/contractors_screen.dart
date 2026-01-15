@@ -40,9 +40,9 @@ class _ContractorsScreenState extends State<ContractorsScreen> with SingleTicker
 
   Future<void> fetchData() async {
     try {
-      final resCont = await http.get(Uri.parse('http://localhost:5064/api/Contractors'));
-      final resJobs = await http.get(Uri.parse('http://localhost:5064/api/Contractors/jobs'));
-      final resProj = await http.get(Uri.parse('http://localhost:5064/api/Projects'));
+      final resCont = await http.get(Uri.parse('http://127.0.0.1:5064/api/Contractors'));
+      final resJobs = await http.get(Uri.parse('http://127.0.0.1:5064/api/Contractors/jobs'));
+      final resProj = await http.get(Uri.parse('http://127.0.0.1:5064/api/Projects'));
 
       if (resCont.statusCode == 200 && resJobs.statusCode == 200) {
         setState(() {
@@ -65,7 +65,7 @@ class _ContractorsScreenState extends State<ContractorsScreen> with SingleTicker
       "cuit": _cuitController.text,
       "isActive": true
     };
-    await http.post(Uri.parse('http://localhost:5064/api/Contractors'),
+    await http.post(Uri.parse('http://127.0.0.1:5064/api/Contractors'),
         headers: {"Content-Type": "application/json"}, body: json.encode(newC));
     
     _nameController.clear(); _tradeController.clear(); _cuitController.clear();
@@ -86,7 +86,7 @@ class _ContractorsScreenState extends State<ContractorsScreen> with SingleTicker
       "isPaid": false
     };
 
-    await http.post(Uri.parse('http://localhost:5064/api/Contractors/jobs'),
+    await http.post(Uri.parse('http://127.0.0.1:5064/api/Contractors/jobs'),
         headers: {"Content-Type": "application/json"}, body: json.encode(newJob));
 
     _jobDescController.clear(); _amountController.clear();
@@ -96,7 +96,7 @@ class _ContractorsScreenState extends State<ContractorsScreen> with SingleTicker
 
   // --- MARCAR PAGADO ---
   Future<void> markAsPaid(String jobId) async {
-    await http.put(Uri.parse('http://localhost:5064/api/Contractors/jobs/$jobId/pay'));
+    await http.put(Uri.parse('http://127.0.0.1:5064/api/Contractors/jobs/$jobId/pay'));
     fetchData();
   }
 

@@ -43,6 +43,7 @@ dependencies:
   printing: ^5.11.0
   path_provider: ^2.1.2   # <--- AGREGAR
   open_file: ^3.3.2       # <--- AGREGAR
+  shared_preferences: ^2.2.2  # <--- AGREGA ESTA LÍNEA AQUÍ
 
 dev_dependencies:
   flutter_test:

@@ -44,6 +44,7 @@ namespace SoctechERP.API.Data
         // --- 7. TESORERÍA (NUEVO - CAJA Y BANCOS) ---
         public DbSet<Wallet> Wallets { get; set; }
         public DbSet<FinancialTransaction> FinancialTransactions { get; set; }
+        public DbSet<User> Users { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

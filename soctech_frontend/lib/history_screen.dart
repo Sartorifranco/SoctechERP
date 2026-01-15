@@ -11,17 +11,14 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  // Configuración
-  final String baseUrl = 'http://localhost:5064/api';
+  // IP SEGURA
+  final String baseUrl = 'http://127.0.0.1:5064/api';
+  
   bool isLoading = true;
-  
-  // Listas
   List<dynamic> allMovements = [];
-  List<dynamic> filteredMovements = []; // Para el buscador
-  
-  // Productos para cruzar info (obtener nombres si faltan)
+  List<dynamic> filteredMovements = [];
   List<dynamic> products = [];
-
+  
   TextEditingController searchCtrl = TextEditingController();
 
   @override
@@ -33,19 +30,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<void> fetchHistory() async {
     setState(() => isLoading = true);
     try {
-      // Traemos Movimientos y Productos (para tener los nombres a mano)
       final responses = await Future.wait([
         http.get(Uri.parse('$baseUrl/StockMovements')),
         http.get(Uri.parse('$baseUrl/Products')),
       ]);
 
       if (responses[0].statusCode == 200) {
+        // CASTEO SEGURO
+        final List<dynamic> movs = json.decode(responses[0].body) as List<dynamic>;
+        
         setState(() {
-          allMovements = json.decode(responses[0].body);
-          filteredMovements = allMovements; // Al inicio mostramos todo
+          allMovements = movs;
+          filteredMovements = movs;
           
           if (responses[1].statusCode == 200) {
-            products = json.decode(responses[1].body);
+            products = json.decode(responses[1].body) as List<dynamic>;
           }
           isLoading = false;
         });
@@ -53,32 +52,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
         throw Exception("Error ${responses[0].statusCode}");
       }
     } catch (e) {
-      print("Error cargando historial: $e");
-      setState(() => isLoading = false);
+      print("Error historial: $e");
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
-  // Lógica del Buscador
   void filterResults(String query) {
     if (query.isEmpty) {
       setState(() => filteredMovements = allMovements);
       return;
     }
-
     setState(() {
       filteredMovements = allMovements.where((mov) {
-        // Buscamos en descripción, nombre de producto (si lo tuviéramos) o tipo
         final desc = (mov['description'] ?? '').toString().toLowerCase();
+        final ref = (mov['reference'] ?? '').toString().toLowerCase();
         final type = (mov['movementType'] ?? '').toString().toLowerCase();
-        // Si el backend no manda el nombre del producto, podrías buscarlo en la lista 'products' usando el ID
-        // Por ahora buscamos en la descripción que suele tener mucha info
-        return desc.contains(query.toLowerCase()) || type.contains(query.toLowerCase());
+        return desc.contains(query.toLowerCase()) || 
+               ref.contains(query.toLowerCase()) || 
+               type.contains(query.toLowerCase());
       }).toList();
     });
   }
 
-  // Helper para nombre de producto
-  String getProductName(String prodId) {
+  String getProductName(String? prodId) {
+    if (prodId == null) return '-';
     final prod = products.firstWhere((p) => p['id'] == prodId, orElse: () => null);
     return prod != null ? prod['name'] : 'Producto Desconocido';
   }
@@ -93,21 +90,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       body: Column(
         children: [
-          // --- BARRA DE BÚSQUEDA ---
+          // BUSCADOR
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
               controller: searchCtrl,
               onChanged: filterResults,
               decoration: InputDecoration(
-                hintText: "Buscar por obra, producto o movimiento...",
+                hintText: "Buscar por referencia, tipo...",
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
                 fillColor: Colors.grey.shade200,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.clear),
                   onPressed: () {
@@ -119,7 +113,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
 
-          // --- LISTA DE MOVIMIENTOS ---
+          // LISTA
           Expanded(
             child: isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -132,15 +126,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       itemBuilder: (context, index) {
                         final mov = filteredMovements[index];
                         
-                        // Datos
-                        final double qty = (mov['quantity'] ?? 0).toDouble();
-                        final bool isEntry = qty > 0;
-                        final DateTime date = DateTime.tryParse(mov['date']) ?? DateTime.now();
+                        // Determinar si es Entrada (Purchase/Entry) o Salida
+                        final String type = (mov['movementType'] ?? '').toString().toUpperCase();
+                        final bool isEntry = type == 'PURCHASE' || type == 'ENTRY';
                         
-                        // Si el backend no manda 'productName' directo en el movimiento, lo buscamos
-                        // (Depende de cómo definimos StockMovementsController)
-                        // Como tu Controller actual devuelve la entidad StockMovement pura, usamos el helper:
+                        final double qty = (mov['quantity'] ?? 0).toDouble();
+                        final DateTime date = DateTime.tryParse(mov['date'] ?? '') ?? DateTime.now();
                         final String prodName = getProductName(mov['productId']);
+                        final String reference = mov['reference'] ?? 'Sin referencia';
 
                         return Card(
                           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -149,7 +142,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             leading: CircleAvatar(
                               backgroundColor: isEntry ? Colors.green.shade100 : Colors.red.shade100,
                               child: Icon(
-                                isEntry ? Icons.arrow_downward : Icons.arrow_upward, // Abajo es entrada (cae al deposito), Arriba es salida (se va)
+                                isEntry ? Icons.download : Icons.upload, // Icono intuitivo
                                 color: isEntry ? Colors.green : Colors.red,
                               ),
                             ),
@@ -157,20 +150,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(mov['description'] ?? 'Sin descripción'),
-                                Text(
-                                  DateFormat('dd/MM/yyyy HH:mm').format(date),
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                                ),
+                                Text("Ref: $reference", style: const TextStyle(fontWeight: FontWeight.w500)),
+                                Text(DateFormat('dd/MM/yyyy HH:mm').format(date), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                               ],
                             ),
-                            trailing: Text(
-                              "${isEntry ? '+' : ''}$qty",
-                              style: TextStyle(
-                                fontSize: 18, 
-                                fontWeight: FontWeight.bold,
-                                color: isEntry ? Colors.green : Colors.red
-                              ),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  "${isEntry ? '+' : '-'}${qty.abs()}",
+                                  style: TextStyle(
+                                    fontSize: 18, 
+                                    fontWeight: FontWeight.bold,
+                                    color: isEntry ? Colors.green : Colors.red
+                                  ),
+                                ),
+                                // Si es entrada, mostramos el costo
+                                if (isEntry && mov['unitCost'] != null)
+                                  Text("\$${mov['unitCost']}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                              ],
                             ),
                           ),
                         );

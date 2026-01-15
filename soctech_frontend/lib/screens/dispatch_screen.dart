@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../utils/remito_generator.dart'; 
+
+// IMPORT CORRECTO (Ruta relativa segura)
+import '../utils/remito_generator.dart';
 
 class DispatchScreen extends StatefulWidget {
   const DispatchScreen({super.key});
@@ -11,7 +13,7 @@ class DispatchScreen extends StatefulWidget {
 }
 
 class _DispatchScreenState extends State<DispatchScreen> {
-  // CONFIGURACIÓN DE RED
+  // CONFIGURACIÓN DE RED (IP Segura para emulador/windows)
   final String baseUrl = 'http://127.0.0.1:5064/api'; 
 
   List<dynamic> projects = [];
@@ -52,15 +54,14 @@ class _DispatchScreenState extends State<DispatchScreen> {
 
       if (responses[0].statusCode == 200 && responses[1].statusCode == 200) {
         
-        // Lógica segura de tipos
         final List<dynamic> projectsRaw = json.decode(responses[0].body) as List<dynamic>;
         final List<dynamic> productsRaw = json.decode(responses[1].body) as List<dynamic>;
 
         if (mounted) {
           setState(() {
-            // Filtros seguros
+            // Solo mostramos proyectos activos
             projects = projectsRaw.where((dynamic p) => p['isActive'] == true).toList();
-            
+            // Solo mostramos productos con stock > 0
             products = productsRaw.where((dynamic p) {
                final stock = p['stock'];
                final num stockNum = (stock is num) ? stock : 0;
@@ -92,7 +93,7 @@ class _DispatchScreenState extends State<DispatchScreen> {
       return;
     }
 
-    // Validación de Stock local (opcional pero recomendada)
+    // Validación de Stock local
     final product = products.firstWhere((p) => p['id'] == selectedProductId);
     final currentStock = (product['stock'] is num) ? product['stock'] : 0;
     if (qty > currentStock) {
@@ -116,22 +117,31 @@ class _DispatchScreenState extends State<DispatchScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/dispatch'),
+        Uri.parse('$baseUrl/StockMovements/dispatch'), // Asegúrate que tu backend tenga esta ruta o ajusta a /StockMovements
         headers: {"Content-Type": "application/json"},
         body: json.encode(dispatchData),
       );
 
-      if (response.statusCode == 200) {
-        final respJson = json.decode(response.body);
+      // Aceptamos 200 (OK) o 201 (Created)
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        
+        // Intentamos leer el número de remito del backend, o generamos uno temporal
+        String dispatchNum = "BORRADOR";
+        try {
+            final respJson = json.decode(response.body);
+            dispatchNum = respJson['dispatchNumber'] ?? "S/N";
+        } catch (_) {}
+
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Salida registrada. Abriendo PDF..."), backgroundColor: Colors.green));
 
-        // GENERAR PDF
+        // DATOS PARA EL PDF
         final pdfData = {
-          'dispatchNumber': respJson['dispatchNumber'] ?? 'BORRADOR',
+          'dispatchNumber': dispatchNum,
           'projectName': selectedProjectName,
           'note': _noteController.text,
         };
         
+        // LLAMADA AL GENERADOR (Ahora sí funcionará el import)
         await RemitoGenerator.generateAndPrint(pdfData, [dispatchItem]);
 
         if (mounted) {
@@ -144,7 +154,7 @@ class _DispatchScreenState extends State<DispatchScreen> {
           });
         }
       } else {
-        throw Exception(response.body);
+        throw Exception("Error ${response.statusCode}: ${response.body}");
       }
     } catch (e) {
       setState(() => isLoading = false);
@@ -157,7 +167,7 @@ class _DispatchScreenState extends State<DispatchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Salida de Materiales"), 
-        backgroundColor: Colors.redAccent, // Volvemos al color oficial
+        backgroundColor: Colors.redAccent, 
         foregroundColor: Colors.white
       ),
       body: isLoading

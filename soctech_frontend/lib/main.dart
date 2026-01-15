@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <--- NECESARIO PARA LOGIN
 
-// --- IMPORTS CORREGIDOS SEGÚN TU ESTRUCTURA DE CARPETAS ---
-// La mayoría están en la raíz de lib/, así que les quitamos el "screens/"
+// --- IMPORTS DE TUS PANTALLAS ---
 import 'dashboard_screen.dart';
 import 'projects_screen.dart';      
 import 'products_screen.dart';      
@@ -19,28 +19,38 @@ import 'invoice_list_screen.dart';
 import 'sales_invoice_screen.dart';      
 import 'sales_invoice_list_screen.dart'; 
 import 'treasury_screen.dart';           
-
-// --- ESTE ES EL ÚNICO QUE SÍ ESTÁ EN LA CARPETA SCREENS ---
 import 'screens/dispatch_screen.dart'; 
+import 'screens/login_screen.dart'; // <--- IMPORTANTE: Importamos el Login
 
-void main() {
-  runApp(const SoctechERP());
+void main() async {
+  // Aseguramos que Flutter esté listo antes de cargar datos
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Verificamos si existe un Token guardado
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('jwt_token');
+
+  // Si hay token, vamos directo a la App (MainLayout). Si no, al Login.
+  runApp(SoctechERP(startScreen: token != null ? const MainLayout() : const LoginScreen()));
 }
 
 class SoctechERP extends StatelessWidget {
-  const SoctechERP({super.key});
+  final Widget startScreen;
+  
+  const SoctechERP({super.key, required this.startScreen});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Soctech prueba suprema',
+      title: 'Soctech ERP',
       debugShowCheckedModeBanner: false, 
       theme: ThemeData(
         primarySwatch: Colors.indigo,
         useMaterial3: true,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const MainLayout(),
+      // Aquí definimos qué pantalla arranca
+      home: startScreen,
     );
   }
 }
@@ -55,6 +65,15 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   Widget _currentScreen = const DashboardScreen();
   String _currentTitle = "Tablero de Control";
+
+  // Función para cerrar sesión
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); // Borra el token
+    if (mounted) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+    }
+  }
 
   void _navigateTo(Widget screen, String title) {
     setState(() {
@@ -76,7 +95,7 @@ class _MainLayoutState extends State<MainLayout> {
           ? null 
           : AppBar(title: Text(_currentTitle), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
       
-      drawer: isDesktop ? null : Drawer(child: AppMenu(onNavigate: _navigateTo)),
+      drawer: isDesktop ? null : Drawer(child: AppMenu(onNavigate: _navigateTo, onLogout: _logout)),
       
       body: Row(
         children: [
@@ -103,7 +122,7 @@ class _MainLayoutState extends State<MainLayout> {
                       ),
                     ),
                     Expanded(
-                      child: AppMenu(onNavigate: _navigateTo),
+                      child: AppMenu(onNavigate: _navigateTo, onLogout: _logout),
                     ),
                   ],
                 ),
@@ -125,11 +144,14 @@ class _MainLayoutState extends State<MainLayout> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(_currentTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo)),
-                        const Row(
+                        Row(
                           children: [
-                            Icon(Icons.notifications, color: Colors.grey),
-                            SizedBox(width: 15),
-                            CircleAvatar(radius: 15, backgroundColor: Colors.indigo, child: Text("A", style: TextStyle(color: Colors.white, fontSize: 12))),
+                            const Icon(Icons.notifications, color: Colors.grey),
+                            const SizedBox(width: 15),
+                            const CircleAvatar(radius: 15, backgroundColor: Colors.indigo, child: Text("A", style: TextStyle(color: Colors.white, fontSize: 12))),
+                            const SizedBox(width: 15),
+                            // Botón de salir rápido en Desktop
+                            IconButton(onPressed: _logout, icon: const Icon(Icons.logout, color: Colors.redAccent), tooltip: "Cerrar Sesión"),
                           ],
                         )
                       ],
@@ -149,12 +171,12 @@ class _MainLayoutState extends State<MainLayout> {
 
 class AppMenu extends StatelessWidget {
   final Function(Widget, String) onNavigate;
+  final VoidCallback onLogout; // Callback para cerrar sesión
 
-  const AppMenu({super.key, required this.onNavigate});
+  const AppMenu({super.key, required this.onNavigate, required this.onLogout});
 
   @override
   Widget build(BuildContext context) {
-    // IMPORTANTE: Quitamos 'const' de la lista porque los Navigator.push no son constantes
     return ListView(
       padding: EdgeInsets.zero,
       children: [
@@ -169,11 +191,7 @@ class AppMenu extends StatelessWidget {
         _sectionTitle("OPERACIONES"),
         _menuItem(Icons.dashboard, 'Tablero de Control', () => onNavigate(const DashboardScreen(), "Tablero de Control")),
         _menuItem(Icons.add_shopping_cart, 'Entrada Mercadería', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AddStockScreen())), color: Colors.green),
-        
-        // --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE ---
         _menuItem(Icons.output, 'Salida / Consumo', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const DispatchScreen())), color: Colors.redAccent),
-        // -------------------------------------
-
         _menuItem(Icons.playlist_add_check_circle, 'Parte Diario Masivo', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const MassAttendanceScreen()))),
         _menuItem(Icons.history_edu, 'Auditoría de Stock', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const HistoryScreen()))),
         _menuItem(Icons.timer, 'Carga de Horas', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const WorkLogsScreen()))),
@@ -201,6 +219,13 @@ class AppMenu extends StatelessWidget {
         const Divider(),
         _sectionTitle("REPORTES"),
         _menuItem(Icons.pie_chart, 'Costos por Obra', () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ProjectCostsScreen())), color: Colors.deepPurple),
+
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.logout, color: Colors.red),
+          title: const Text("Cerrar Sesión", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          onTap: onLogout, // Conectado al botón de salir
+        ),
       ],
     );
   }
