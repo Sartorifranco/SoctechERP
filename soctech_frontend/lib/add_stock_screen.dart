@@ -10,7 +10,7 @@ class AddStockScreen extends StatefulWidget {
 }
 
 class _AddStockScreenState extends State<AddStockScreen> {
-  // 1. CONFIGURACIÓN DE RED SEGURA
+  // CONFIGURACIÓN DE RED SEGURA
   final String baseUrl = 'http://127.0.0.1:5064/api';
 
   final _quantityController = TextEditingController();
@@ -21,7 +21,10 @@ class _AddStockScreenState extends State<AddStockScreen> {
   bool isLoading = true;
   
   List<dynamic> products = [];
+  List<dynamic> warehouses = []; // <--- NUEVA LISTA DE DEPÓSITOS
+  
   String? selectedProductId;
+  String? selectedWarehouseId; // <--- NUEVA SELECCIÓN
   
   // Variables visuales
   double currentStock = 0;
@@ -30,29 +33,45 @@ class _AddStockScreenState extends State<AddStockScreen> {
   @override
   void initState() {
     super.initState();
-    loadProducts(); 
+    _loadInitialData(); 
   }
 
-  Future<void> loadProducts() async {
+  // --- 1. CARGA DE DATOS (Productos + Depósitos) ---
+  Future<void> _loadInitialData() async {
     setState(() => isLoading = true);
     try {
-      final response = await http.get(Uri.parse('$baseUrl/Products'));
+      final responses = await Future.wait([
+        http.get(Uri.parse('$baseUrl/Products')),
+        http.get(Uri.parse('$baseUrl/Logistics/warehouses')), // Endpoint Nuevo
+      ]);
       
-      if (response.statusCode == 200) {
-        // 2. DECODIFICACIÓN SEGURA
-        final List<dynamic> data = json.decode(response.body) as List<dynamic>;
+      if (responses[0].statusCode == 200 && responses[1].statusCode == 200) {
+        final List<dynamic> productsData = json.decode(responses[0].body);
+        final List<dynamic> warehousesData = json.decode(responses[1].body);
         
         if (mounted) {
           setState(() {
-            products = data;
+            products = productsData;
+            warehouses = warehousesData;
+            
+            // Auto-seleccionar el Depósito Principal si existe
+            try {
+              final mainWarehouse = warehouses.firstWhere((w) => w['isMain'] == true, orElse: () => null);
+              if (mainWarehouse != null) {
+                selectedWarehouseId = mainWarehouse['id'];
+              } else if (warehouses.isNotEmpty) {
+                selectedWarehouseId = warehouses.first['id'];
+              }
+            } catch (_) {}
+            
             isLoading = false;
           });
         }
       } else {
-        throw Exception("Error ${response.statusCode}");
+        throw Exception("Error cargando datos del servidor");
       }
     } catch (e) {
-      print("Error cargando productos: $e");
+      print("Error cargando datos: $e");
       if (mounted) {
         setState(() => isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
@@ -66,6 +85,7 @@ class _AddStockScreenState extends State<AddStockScreen> {
     final prod = products.firstWhere((p) => p['id'] == id);
     setState(() {
       selectedProductId = id;
+      // OJO: Este stock es el "Global", después haremos que muestre el stock por depósito si quieres hilar fino
       currentStock = (prod['stock'] ?? 0).toDouble();
       currentCost = (prod['costPrice'] ?? 0).toDouble();
       
@@ -75,8 +95,8 @@ class _AddStockScreenState extends State<AddStockScreen> {
   }
 
   Future<void> saveEntry() async {
-    if (selectedProductId == null || _quantityController.text.isEmpty || _costController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Completa todos los campos obligatorios")));
+    if (selectedProductId == null || selectedWarehouseId == null || _quantityController.text.isEmpty || _costController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Completa todos los campos obligatorios (Producto, Depósito, Cantidad)")));
       return;
     }
 
@@ -85,14 +105,23 @@ class _AddStockScreenState extends State<AddStockScreen> {
     double quantity = double.tryParse(_quantityController.text) ?? 0;
     double newCost = double.tryParse(_costController.text) ?? 0;
 
-    // 3. OBJETO DE MOVIMIENTO LIMPIO (Sin IDs de empresa conflictivos)
+    // 3. OBJETO DE MOVIMIENTO ENTERPRISE (Con Depósito de Destino)
     final movement = {
       "productId": selectedProductId,
+      "branchId": "00000000-0000-0000-0000-000000000000", // Branch Dummy si se requiere
       "projectId": null, 
+      "projectPhaseId": null,
+      
+      // --- NUEVO: INFORMACIÓN LOGÍSTICA ---
+      "sourceWarehouseId": null, // Viene de afuera (Proveedor)
+      "targetWarehouseId": selectedWarehouseId, // Va a este depósito
+      // ------------------------------------
+
       "movementType": "PURCHASE",
       "quantity": quantity, 
       "unitCost": newCost, 
       "date": DateTime.now().toIso8601String(),
+      "description": "Ingreso de Mercadería",
       "reference": _referenceController.text.isEmpty ? "Ingreso Manual" : _referenceController.text
     };
 
@@ -105,11 +134,10 @@ class _AddStockScreenState extends State<AddStockScreen> {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ ¡Stock ingresado correctamente!"), backgroundColor: Colors.green));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ ¡Stock ingresado al Depósito correctamente!"), backgroundColor: Colors.green));
           Navigator.pop(context, true); // Vuelve atrás y avisa que actualice
         }
       } else {
-        // Si falla, mostramos el mensaje exacto del servidor para debuguear
         throw Exception("Error del servidor (${response.statusCode}): ${response.body}");
       }
     } catch (e) {
@@ -122,7 +150,7 @@ class _AddStockScreenState extends State<AddStockScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Ingresar Mercadería"),
+        title: const Text("Ingresar Mercadería (Multi-Depósito)"),
         backgroundColor: Colors.green[700],
         foregroundColor: Colors.white,
       ),
@@ -131,15 +159,41 @@ class _AddStockScreenState extends State<AddStockScreen> {
         : SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- PRODUCTO ---
+                // --- SECCIÓN 1: UBICACIÓN DE DESTINO (NUEVO) ---
+                const Text("Ubicación de Destino", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 5),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: "Seleccionar Depósito / Obra",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.warehouse),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  value: selectedWarehouseId,
+                  items: warehouses.map<DropdownMenuItem<String>>((wh) {
+                    return DropdownMenuItem<String>(
+                      value: wh['id'],
+                      child: Text(wh['name'] + (wh['isMain'] ? " (Principal)" : "")),
+                    );
+                  }).toList(),
+                  onChanged: (val) => setState(() => selectedWarehouseId = val),
+                ),
+                
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 10),
+
+                // --- SECCIÓN 2: PRODUCTO ---
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(
                     labelText: "Producto a Ingresar",
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.inventory),
                   ),
-                  value: selectedProductId, // Mantiene la selección si recarga
+                  value: selectedProductId, 
                   items: products.map<DropdownMenuItem<String>>((prod) {
                     return DropdownMenuItem<String>(
                       value: prod['id'],
@@ -163,7 +217,8 @@ class _AddStockScreenState extends State<AddStockScreen> {
                       children: [
                         const Icon(Icons.info_outline, color: Colors.blue),
                         const SizedBox(width: 10),
-                        Text("Stock actual: $currentStock | Costo actual: \$$currentCost", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                        // Nota visual para el usuario
+                        Expanded(child: Text("Stock Global: $currentStock | Costo PPP: \$$currentCost", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue))),
                       ],
                     ),
                   ),
@@ -221,7 +276,7 @@ class _AddStockScreenState extends State<AddStockScreen> {
                     icon: isSaving 
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
                       : const Icon(Icons.save_alt),
-                    label: const Text("REGISTRAR INGRESO", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    label: const Text("REGISTRAR ENTRADA", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green[700], 
                       foregroundColor: Colors.white,

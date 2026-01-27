@@ -20,13 +20,20 @@ namespace SoctechERP.API.Models
         public Guid? ProjectId { get; set; }
 
         // --- NUEVA PROPIEDAD PARA FASES ---
-        // Permite saber si el material fue para "Cimientos", "Techo", etc.
         public Guid? ProjectPhaseId { get; set; } 
         // ----------------------------------
 
+        // --- NUEVAS PROPIEDADES LOGÍSTICAS (MULTI-DEPÓSITO) ---
+        public Guid? SourceWarehouseId { get; set; } // Origen (null si es compra externa o ajuste positivo)
+        public Guid? TargetWarehouseId { get; set; } // Destino (null si es consumo final o ajuste negativo)
+
+        public Warehouse? SourceWarehouse { get; set; }
+        public Warehouse? TargetWarehouse { get; set; }
+        // ------------------------------------------------------
+
         [Required]
         [MaxLength(50)]
-        public string MovementType { get; set; } = string.Empty; // Ej: PURCHASE, CONSUMPTION
+        public string MovementType { get; set; } = string.Empty; // Ej: PURCHASE, CONSUMPTION, TRANSFER
 
         [Column(TypeName = "decimal(18,4)")]
         public decimal Quantity { get; set; }

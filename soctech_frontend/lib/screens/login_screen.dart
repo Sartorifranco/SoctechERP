@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-// Importamos main.dart para poder navegar al "MainLayout" (tu menú principal)
 import '../main.dart'; 
 
 class LoginScreen extends StatefulWidget {
@@ -27,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => isLoading = true);
 
     try {
-      // IP Segura para Windows/Android
+      // Ajusta la IP si es necesario (127.0.0.1 para Windows, 10.0.2.2 para Emulador Android)
       final response = await http.post(
         Uri.parse('http://127.0.0.1:5064/api/Auth/login'),
         headers: {"Content-Type": "application/json"},
@@ -39,15 +38,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final token = data['token']; // El backend puede devolver 'Token' o 'token', ajustamos si falla
+        
+        final token = data['token'] ?? data['Token']; 
+        final role = data['role'] ?? data['Role'];
+        
+        // --- AQUÍ ESTÁ LA MAGIA NUEVA ---
+        // Recibimos la lista de permisos del backend
+        final List<dynamic> rawPerms = data['permissions'] ?? data['Permissions'] ?? [];
+        final List<String> permissions = rawPerms.map((e) => e.toString()).toList();
 
-        // Guardar sesión en el celular
+        // Guardamos todo en la memoria del dispositivo
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('jwt_token', token);
         await prefs.setString('username', _userCtrl.text);
+        await prefs.setString('role', role);
+        await prefs.setStringList('user_permissions', permissions); // <--- Guardamos la lista
 
         if (mounted) {
-          // Navegar a la App Principal (MainLayout) y borrar historial para no volver al login
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (_) => const MainLayout()),
@@ -56,11 +63,11 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Usuario o contraseña incorrectos"), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Credenciales inválidas"), backgroundColor: Colors.red));
         }
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error de conexión: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -89,10 +96,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.security, size: 60, color: Colors.indigo),
+                    const Icon(Icons.shield, size: 60, color: Colors.indigo), // Icono de seguridad
                     const SizedBox(height: 10),
                     const Text("SOCTECH ERP", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.indigo)),
-                    const Text("Acceso Seguro", style: TextStyle(color: Colors.grey)),
+                    const Text("Enterprise Access", style: TextStyle(color: Colors.grey, letterSpacing: 1.5)),
                     const SizedBox(height: 30),
                     
                     TextField(
@@ -133,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: isLoading ? null : login,
                         child: isLoading 
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text("INGRESAR AL SISTEMA", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          : const Text("INGRESAR", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],

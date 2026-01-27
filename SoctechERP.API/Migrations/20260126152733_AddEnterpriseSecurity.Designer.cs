@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SoctechERP.API.Data;
@@ -11,9 +12,11 @@ using SoctechERP.API.Data;
 namespace SoctechERP.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260126152733_AddEnterpriseSecurity")]
+    partial class AddEnterpriseSecurity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -352,32 +355,6 @@ namespace SoctechERP.API.Migrations
                     b.ToTable("Products");
                 });
 
-            modelBuilder.Entity("SoctechERP.API.Models.ProductStock", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid>("WarehouseId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WarehouseId");
-
-                    b.HasIndex("ProductId", "WarehouseId")
-                        .IsUnique();
-
-                    b.ToTable("ProductStocks");
-                });
-
             modelBuilder.Entity("SoctechERP.API.Models.Project", b =>
                 {
                     b.Property<Guid>("Id")
@@ -677,21 +654,11 @@ namespace SoctechERP.API.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<Guid?>("SourceWarehouseId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("TargetWarehouseId")
-                        .HasColumnType("uuid");
-
                     b.Property<decimal>("UnitCost")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("SourceWarehouseId");
-
-                    b.HasIndex("TargetWarehouseId");
 
                     b.ToTable("StockMovements");
                 });
@@ -917,7 +884,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial Especializado",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 26, 14, 7, 27, 878, DateTimeKind.Local).AddTicks(5323),
+                            ValidFrom = new DateTime(2026, 1, 26, 12, 27, 32, 792, DateTimeKind.Local).AddTicks(2283),
                             ZonePercentage = 0.0
                         },
                         new
@@ -927,7 +894,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 26, 14, 7, 27, 878, DateTimeKind.Local).AddTicks(5335),
+                            ValidFrom = new DateTime(2026, 1, 26, 12, 27, 32, 792, DateTimeKind.Local).AddTicks(2294),
                             ZonePercentage = 0.0
                         },
                         new
@@ -937,7 +904,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Medio Oficial",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 26, 14, 7, 27, 878, DateTimeKind.Local).AddTicks(5337),
+                            ValidFrom = new DateTime(2026, 1, 26, 12, 27, 32, 792, DateTimeKind.Local).AddTicks(2296),
                             ZonePercentage = 0.0
                         },
                         new
@@ -947,7 +914,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Ayudante",
                             IsActive = true,
                             Union = 0,
-                            ValidFrom = new DateTime(2026, 1, 26, 14, 7, 27, 878, DateTimeKind.Local).AddTicks(5347),
+                            ValidFrom = new DateTime(2026, 1, 26, 12, 27, 32, 792, DateTimeKind.Local).AddTicks(2298),
                             ZonePercentage = 0.0
                         },
                         new
@@ -957,7 +924,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo A",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 26, 14, 7, 27, 878, DateTimeKind.Local).AddTicks(5349),
+                            ValidFrom = new DateTime(2026, 1, 26, 12, 27, 32, 792, DateTimeKind.Local).AddTicks(2300),
                             ZonePercentage = 0.0
                         },
                         new
@@ -967,7 +934,7 @@ namespace SoctechERP.API.Migrations
                             CategoryName = "Administrativo B",
                             IsActive = true,
                             Union = 1,
-                            ValidFrom = new DateTime(2026, 1, 26, 14, 7, 27, 878, DateTimeKind.Local).AddTicks(5351),
+                            ValidFrom = new DateTime(2026, 1, 26, 12, 27, 32, 792, DateTimeKind.Local).AddTicks(2310),
                             ZonePercentage = 0.0
                         });
                 });
@@ -1000,41 +967,6 @@ namespace SoctechERP.API.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Wallets");
-                });
-
-            modelBuilder.Entity("SoctechERP.API.Models.Warehouse", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsMain")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Location")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Warehouses");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("dddddddd-dddd-dddd-dddd-dddddddddddd"),
-                            IsActive = true,
-                            IsMain = true,
-                            Location = "Casa Central",
-                            Name = "Depósito Central"
-                        });
                 });
 
             modelBuilder.Entity("SoctechERP.API.Models.WorkLog", b =>
@@ -1100,25 +1032,6 @@ namespace SoctechERP.API.Migrations
                     b.Navigation("WageScale");
                 });
 
-            modelBuilder.Entity("SoctechERP.API.Models.ProductStock", b =>
-                {
-                    b.HasOne("SoctechERP.API.Models.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SoctechERP.API.Models.Warehouse", "Warehouse")
-                        .WithMany()
-                        .HasForeignKey("WarehouseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-
-                    b.Navigation("Warehouse");
-                });
-
             modelBuilder.Entity("SoctechERP.API.Models.PurchaseOrderItem", b =>
                 {
                     b.HasOne("SoctechERP.API.Models.PurchaseOrder", null)
@@ -1126,21 +1039,6 @@ namespace SoctechERP.API.Migrations
                         .HasForeignKey("PurchaseOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("SoctechERP.API.Models.StockMovement", b =>
-                {
-                    b.HasOne("SoctechERP.API.Models.Warehouse", "SourceWarehouse")
-                        .WithMany()
-                        .HasForeignKey("SourceWarehouseId");
-
-                    b.HasOne("SoctechERP.API.Models.Warehouse", "TargetWarehouse")
-                        .WithMany()
-                        .HasForeignKey("TargetWarehouseId");
-
-                    b.Navigation("SourceWarehouse");
-
-                    b.Navigation("TargetWarehouse");
                 });
 
             modelBuilder.Entity("SoctechERP.API.Models.UserPermission", b =>
