@@ -1,178 +1,111 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SoctechERP.API.Data;
 using SoctechERP.API.Models;
+using SoctechERP.API.Models.Enums;
+using SoctechERP.API.Services;
+using System.Security.Claims;
 
 namespace SoctechERP.API.Controllers
 {
-    [Route("api/[controller]")]
+    [Authorize]
     [ApiController]
+    [Route("api/[controller]")]
     public class SupplierInvoicesController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly PurchaseValidationService _validationService;
 
-        public SupplierInvoicesController(AppDbContext context)
+        public SupplierInvoicesController(AppDbContext context, PurchaseValidationService validationService)
         {
             _context = context;
+            _validationService = validationService;
         }
 
-        // GET: api/SupplierInvoices (AHORA TRAE INFO DE LA ORDEN DE COMPRA)
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<object>>> GetInvoices()
+        // --- A. DATA ENTRY (CARGA DE FACTURAS) ---
+
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] SupplierInvoice invoice)
         {
-            var invoices = await _context.SupplierInvoices
-                .OrderByDescending(i => i.InvoiceDate)
-                .Select(i => new 
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            try
+            {
+                // 1. Configuración Inicial
+                invoice.Id = Guid.NewGuid();
+                invoice.CreatedAt = DateTime.UtcNow;
+                
+                var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (Guid.TryParse(userIdStr, out Guid userId)) invoice.CreatedByUserId = userId;
+
+                // Asignamos IDs a los items
+                foreach(var item in invoice.Items)
                 {
+                    item.Id = Guid.NewGuid();
+                    item.SupplierInvoiceId = invoice.Id;
+                }
+                
+                _context.SupplierInvoices.Add(invoice);
+                await _context.SaveChangesAsync();
+
+                // 2. DISPARAR VALIDACIÓN AUTOMÁTICA (3-Way Match)
+                var finalStatus = await _validationService.ValidateInvoiceAsync(invoice.Id);
+
+                return Ok(new 
+                { 
+                    Message = "Factura procesada.", 
+                    InvoiceId = invoice.Id,
+                    Status = finalStatus.ToString(), // "MatchedOK" o "BlockedByVariance"
+                    Warning = finalStatus == InvoiceStatus.BlockedByVariance ? "⚠️ BLOQUEADA por diferencia de precio." : null
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Error = ex.Message });
+            }
+        }
+
+        // --- B. DASHBOARD GERENCIAL (ALERTAS) ---
+
+        // Endpoint para tu Widget "Alertas de Compra"
+        [HttpGet("blocked")]
+        public async Task<IActionResult> GetBlockedInvoices()
+        {
+            var blocked = await _context.SupplierInvoices
+                .Where(i => i.Status == InvoiceStatus.BlockedByVariance)
+                .Include(i => i.Exceptions) // Traemos el detalle del error
+                .OrderByDescending(i => i.TotalAmount)
+                .Select(i => new {
                     i.Id,
                     i.InvoiceNumber,
                     i.ProviderName,
-                    i.InvoiceDate,
-                    i.DueDate,
                     i.TotalAmount,
-                    i.NetAmount,
-                    i.VatAmount,
-                    i.Status,
-                    i.RelatedPurchaseOrderId,
-                    
-                    // --- DATOS EXTRA PARA LA COMPARATIVA ---
-                    // Buscamos cuánto era el total original de la OC
-                    PurchaseOrderTotal = _context.PurchaseOrders
-                                         .Where(po => po.Id == i.RelatedPurchaseOrderId)
-                                         .Select(po => po.TotalAmount)
-                                         .FirstOrDefault(),
-                                         
-                    // Buscamos el número de la OC
-                    PurchaseOrderNumber = _context.PurchaseOrders
-                                          .Where(po => po.Id == i.RelatedPurchaseOrderId)
-                                          .Select(po => po.OrderNumber)
-                                          .FirstOrDefault()
+                    // Resumen para la tarjeta visual del Dashboard
+                    VarianceAmount = i.Exceptions.Sum(e => e.VarianceTotalAmount),
+                    MainCause = i.Exceptions.FirstOrDefault() != null ? i.Exceptions.FirstOrDefault().Description : "Varios errores"
                 })
                 .ToListAsync();
 
-            return Ok(invoices);
+            return Ok(blocked);
         }
 
-        // POST: api/SupplierInvoices
-        [HttpPost]
-        public async Task<ActionResult<SupplierInvoice>> PostInvoice(SupplierInvoice invoice)
+        // Acción Gerencial: Aprobar un desvío ("Pagar igual")
+        [HttpPost("approve-exception/{exceptionId}")]
+        public async Task<IActionResult> ApproveVariance(Guid exceptionId, [FromBody] string managerComments)
         {
-            if (invoice.ProviderId == Guid.Empty) return BadRequest("Falta el Proveedor");
-
-            if (invoice.RelatedPurchaseOrderId != null)
+            try
             {
-                var order = await _context.PurchaseOrders
-                                          .Include(po => po.Items) 
-                                          .FirstOrDefaultAsync(o => o.Id == invoice.RelatedPurchaseOrderId);
-
-                if (order != null)
-                {
-                    decimal difference = Math.Abs(order.TotalAmount - invoice.TotalAmount); 
-                    
-                    if (difference > 1000) 
-                    {
-                        invoice.Status = "Flagged"; // OBSERVADA
-                    }
-                    else
-                    {
-                        invoice.Status = "Approved"; 
-                        order.Status = "Finished";
-
-                        foreach (var item in order.Items)
-                        {
-                            var product = await _context.Products.FindAsync(item.ProductId);
-                            if (product != null)
-                            {
-                                product.Stock += (decimal)item.Quantity; 
-                                product.CostPrice = item.UnitPrice; 
-                            }
-                        }
-                    }
-                }
+                var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "SYSTEM";
+                
+                await _validationService.ApproveExceptionAsync(exceptionId, userIdStr, managerComments);
+                
+                return Ok(new { Message = "Desvío autorizado. La factura será re-evaluada." });
             }
-            else 
+            catch (Exception ex)
             {
-                invoice.Status = "Approved"; 
+                return BadRequest(new { Error = ex.Message });
             }
-
-            invoice.Id = Guid.NewGuid();
-            _context.SupplierInvoices.Add(invoice);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetInvoices", new { id = invoice.Id }, invoice);
-        }
-        
-        // DASHBOARD
-        [HttpGet("debt-summary")]
-        public async Task<ActionResult<object>> GetDebtSummary()
-        {
-             var debt = await _context.SupplierInvoices
-                                      .Where(i => i.Status == "Approved" || i.Status == "Flagged")
-                                      .GroupBy(i => i.ProviderName)
-                                      .Select(g => new { 
-                                          Provider = g.Key, 
-                                          TotalDebt = g.Sum(x => x.TotalAmount),
-                                          Count = g.Count()
-                                      })
-                                      .OrderByDescending(x => x.TotalDebt)
-                                      .ToListAsync();
-             return debt;
-        }
-
-        // DELETE
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteInvoice(Guid id)
-        {
-            var invoice = await _context.SupplierInvoices.FindAsync(id);
-            if (invoice == null) return NotFound("Factura no encontrada");
-
-            if (invoice.Status == "Approved")
-                return BadRequest("No se puede eliminar una factura ya Aprobada. Use Nota de Crédito.");
-
-            _context.SupplierInvoices.Remove(invoice);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Factura eliminada correctamente." });
-        }
-
-        // PUT: FORZAR APROBACIÓN
-        [HttpPut("{id}/approve")]
-        public async Task<IActionResult> ForceApproveInvoice(Guid id)
-        {
-            var invoice = await _context.SupplierInvoices.FindAsync(id);
-            if (invoice == null) return NotFound("Factura no encontrada");
-
-            if (invoice.Status == "Approved")
-                return BadRequest("Esta factura ya está aprobada.");
-
-            invoice.Status = "Approved";
-
-            if (invoice.RelatedPurchaseOrderId != null)
-            {
-                var order = await _context.PurchaseOrders
-                                          .Include(po => po.Items)
-                                          .FirstOrDefaultAsync(o => o.Id == invoice.RelatedPurchaseOrderId);
-
-                if (order != null)
-                {
-                    if (order.Status != "Finished")
-                    {
-                        order.Status = "Finished";
-                        foreach (var item in order.Items)
-                        {
-                            var product = await _context.Products.FindAsync(item.ProductId);
-                            if (product != null)
-                            {
-                                product.Stock += (decimal)item.Quantity;
-                                product.CostPrice = item.UnitPrice;
-                            }
-                        }
-                    }
-                }
-            }
-
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "Factura aprobada manualmente y stock actualizado." });
         }
     }
 }

@@ -2,28 +2,43 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace SoctechERP.API.Models // Ajusta el namespace según tu proyecto
+namespace SoctechERP.API.Models 
 {
+    [Table("ProjectPhases")]
     public class ProjectPhase
     {
         [Key]
-        public Guid Id { get; set; }
-
-        [Required]
-        public string Name { get; set; } = string.Empty; // <--- CORREGIDO
-        
-        public string Description { get; set; } = string.Empty;
-
-        public double Budget { get; set; } // Presupuesto específico para esta fase
-
-        public bool IsCompleted { get; set; } = false;
+        public Guid Id { get; set; } = Guid.NewGuid();
 
         // Relación con la Obra
         [Required]
         public Guid ProjectId { get; set; }
+
+        [Required]
+        public string Name { get; set; } = string.Empty; 
         
-        // (Opcional) Si tienes la clase Project definida, descomenta esto para navegación:
-        // [ForeignKey("ProjectId")]
-        // public Project Project { get; set; }
+        public string Description { get; set; } = string.Empty;
+
+        // --- GESTIÓN FINANCIERA (CONTROL DE COSTOS) ---
+        // Usamos 'decimal' para evitar errores de redondeo financiero.
+
+        // 1. Planificación (Presupuesto)
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal Budget { get; set; } // Presupuesto Global de la fase
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal BudgetedMaterialCost { get; set; } // Meta de gasto en materiales
+
+        // 2. Ejecución (Realidad)
+        // Este campo se actualiza solo cuando el LogisticsService procesa un Vale de Salida
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal ActualMaterialCost { get; set; }
+
+        // Preparado para el futuro módulo de RRHH
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal ActualLaborCost { get; set; }
+
+        public bool IsCompleted { get; set; } = false;
+        public bool IsActive { get; set; } = true;
     }
 }

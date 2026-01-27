@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SoctechERP.API.Models.Enums; // Asegurate de tener los Enums importados
 
 namespace SoctechERP.API.Models
 {
+    [Table("StockMovements")]
     public class StockMovement
     {
         [Key]
@@ -11,33 +13,33 @@ namespace SoctechERP.API.Models
         public Guid CompanyId { get; set; }
 
         [Required]
-        public Guid BranchId { get; set; }
+        public Guid BranchId { get; set; } // Sucursal dueña del movimiento
 
         [Required]
         public Guid ProductId { get; set; }
 
-        // Relación con la Obra (Puede ser null si es una compra general o ajuste)
+        // --- IMPUTACIÓN DE COSTOS (Project Accounting) ---
         public Guid? ProjectId { get; set; }
-
-        // --- NUEVA PROPIEDAD PARA FASES ---
         public Guid? ProjectPhaseId { get; set; } 
-        // ----------------------------------
 
-        // --- NUEVAS PROPIEDADES LOGÍSTICAS (MULTI-DEPÓSITO) ---
-        public Guid? SourceWarehouseId { get; set; } // Origen (null si es compra externa o ajuste positivo)
-        public Guid? TargetWarehouseId { get; set; } // Destino (null si es consumo final o ajuste negativo)
+        // --- LOGÍSTICA MULTI-DEPÓSITO ---
+        // Lógica de Partida Doble: Origen -> Destino
+        public Guid? SourceWarehouseId { get; set; } 
+        public Guid? TargetWarehouseId { get; set; } 
 
-        public Warehouse? SourceWarehouse { get; set; }
-        public Warehouse? TargetWarehouse { get; set; }
-        // ------------------------------------------------------
+        public virtual Warehouse? SourceWarehouse { get; set; }
+        public virtual Warehouse? TargetWarehouse { get; set; }
 
+        // --- TIPO DE MOVIMIENTO (BLINDADO) ---
+        // Usamos Enum para evitar errores de tipeo y asegurar reportes financieros exactos
         [Required]
-        [MaxLength(50)]
-        public string MovementType { get; set; } = string.Empty; // Ej: PURCHASE, CONSUMPTION, TRANSFER
+        public StockMovementType MovementType { get; set; } 
 
+        // --- CANTIDAD Y VALOR ---
         [Column(TypeName = "decimal(18,4)")]
         public decimal Quantity { get; set; }
 
+        // Valor unitario al momento exacto de la operación (Snapshot financiero)
         [Column(TypeName = "decimal(18,2)")]
         public decimal UnitCost { get; set; }
 
@@ -46,6 +48,9 @@ namespace SoctechERP.API.Models
         public string Description { get; set; } = string.Empty;
 
         [MaxLength(100)]
-        public string? Reference { get; set; }
+        public string? Reference { get; set; } // Ej: "Remito R-0001" o "Vale #504"
+        
+        // Vínculo con la recepción física (Auditoría)
+        public Guid? RelatedGoodsReceiptId { get; set; }
     }
 }

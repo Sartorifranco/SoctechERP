@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SoctechERP.API.Data;
+// Importamos el namespace de los Servicios para limpiar el código
+using SoctechERP.API.Services; 
 
 // Configuración para fechas (PostgreSQL)
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -25,8 +27,8 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 3. CONFIGURACIÓN DE SEGURIDAD (JWT) - ¡NUEVO!
-var key = Encoding.ASCII.GetBytes("ESTA_ES_MI_CLAVE_SECRETA_SUPER_SEGURA_123456"); // Misma clave que en AuthController
+// 3. CONFIGURACIÓN DE SEGURIDAD (JWT)
+var key = Encoding.ASCII.GetBytes("ESTA_ES_MI_CLAVE_SECRETA_SUPER_SEGURA_123456"); 
 builder.Services.AddAuthentication(x =>
 {
     x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -49,9 +51,21 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// 4. SERVICIOS DE INTELIGENCIA ARTIFICIAL (Inyección de Dependencias)
-builder.Services.AddScoped<SoctechERP.API.Services.AiAssistant>();      // Chatbot
-builder.Services.AddScoped<SoctechERP.API.Services.AiInvoiceScanner>(); // Escáner de Facturas
+// -----------------------------------------------------------------------------
+// INYECCIÓN DE DEPENDENCIAS (EL CEREBRO DEL ERP)
+// -----------------------------------------------------------------------------
+
+// A. Servicios de Inteligencia Artificial
+builder.Services.AddScoped<AiAssistant>();       // Chatbot
+builder.Services.AddScoped<AiInvoiceScanner>();  // Escáner de Facturas
+
+// B. Servicios Core de Negocio (Arquitectura ERP Corporativa)
+// Registramos los motores lógicos que hemos diseñado:
+builder.Services.AddScoped<LogisticsService>();          // Motor de Stock y Recepción (Goods Receipt)
+builder.Services.AddScoped<PurchaseValidationService>(); // Motor de Triple Validación (3-Way Match)
+builder.Services.AddScoped<ProjectsService>();           // Automatización de Obras y Depósitos
+
+// -----------------------------------------------------------------------------
 
 var app = builder.Build();
 

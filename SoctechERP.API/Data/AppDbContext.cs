@@ -14,7 +14,7 @@ namespace SoctechERP.API.Data
         public DbSet<Company> Companies { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<Branch> Branches { get; set; }
-        public DbSet<StockMovement> StockMovements { get; set; }
+        public DbSet<StockMovement> StockMovements { get; set; } // El Historial (Kardex)
         
         // --- 2. GESTIÓN DE OBRAS ---
         public DbSet<Project> Projects { get; set; }
@@ -27,7 +27,11 @@ namespace SoctechERP.API.Data
         public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; }
         public DbSet<Dispatch> Dispatches { get; set; }
         public DbSet<DispatchItem> DispatchItems { get; set; }
-        
+
+        // [NUEVO] Recepción de Mercadería (Goods Receipt)
+        public DbSet<GoodsReceipt> GoodsReceipts { get; set; }
+        public DbSet<GoodsReceiptItem> GoodsReceiptItems { get; set; }
+
         // --- 4. SUBCONTRATISTAS ---
         public DbSet<Contractor> Contractors { get; set; }
         public DbSet<ContractorJob> ContractorJobs { get; set; }
@@ -38,8 +42,12 @@ namespace SoctechERP.API.Data
         public DbSet<WageScale> WageScales { get; set; }
 
         // --- 6. ADMINISTRACIÓN (FACTURACIÓN) ---
-        public DbSet<SupplierInvoice> SupplierInvoices { get; set; } // Compras (3-Way Match)
-        public DbSet<SalesInvoice> SalesInvoices { get; set; }       // Ventas (Certificados)
+        public DbSet<SupplierInvoice> SupplierInvoices { get; set; } 
+        // [NUEVO] Detalle y Auditoría de Facturas (3-Way Match)
+        public DbSet<SupplierInvoiceItem> SupplierInvoiceItems { get; set; }
+        public DbSet<InvoiceException> InvoiceExceptions { get; set; }
+
+        public DbSet<SalesInvoice> SalesInvoices { get; set; }       
 
         // --- 7. TESORERÍA ---
         public DbSet<Wallet> Wallets { get; set; }
@@ -50,9 +58,13 @@ namespace SoctechERP.API.Data
         public DbSet<SystemModule> SystemModules { get; set; }
         public DbSet<UserPermission> UserPermissions { get; set; }
 
-        // --- 9. LOGÍSTICA MULTI-DEPÓSITO (NUEVO) ---
+        // --- 9. LOGÍSTICA & CONSUMO ---
         public DbSet<Warehouse> Warehouses { get; set; }
         public DbSet<ProductStock> ProductStocks { get; set; }
+        
+        // [NUEVO] Vales de Salida (Consumo ABC)
+        public DbSet<StockWithdrawal> StockWithdrawals { get; set; }
+        public DbSet<StockWithdrawalItem> StockWithdrawalItems { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -63,33 +75,83 @@ namespace SoctechERP.API.Data
             modelBuilder.Entity<Company>().HasIndex(c => c.Cuit).IsUnique();
             modelBuilder.Entity<Product>().HasIndex(p => p.Sku).IsUnique();
 
-            // --- PRECISIONES DECIMALES ---
+            // --- RELACIONES ROBUSTAS (Evitar borrados en cascada accidentales) ---
+            modelBuilder.Entity<StockMovement>()
+                .HasOne(m => m.SourceWarehouse)
+                .WithMany()
+                .HasForeignKey(m => m.SourceWarehouseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<StockMovement>()
+                .HasOne(m => m.TargetWarehouse)
+                .WithMany()
+                .HasForeignKey(m => m.TargetWarehouseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- PRECISIONES DECIMALES (CRÍTICO PARA ERP FINANCIERO) ---
+            
+            // Productos y Stock
             modelBuilder.Entity<Product>().Property(p => p.CostPrice).HasPrecision(18, 2);
+            modelBuilder.Entity<Product>().Property(p => p.UnitPrice).HasPrecision(18, 2);
+            modelBuilder.Entity<Product>().Property(p => p.Stock).HasPrecision(18, 4); 
             modelBuilder.Entity<StockMovement>().Property(s => s.Quantity).HasPrecision(18, 4);
             modelBuilder.Entity<StockMovement>().Property(s => s.UnitCost).HasPrecision(18, 2);
+            
+            // Fases de Proyecto
+            modelBuilder.Entity<ProjectPhase>().Property(p => p.Budget).HasPrecision(18, 2);
+            modelBuilder.Entity<ProjectPhase>().Property(p => p.BudgetedMaterialCost).HasPrecision(18, 2);
+            modelBuilder.Entity<ProjectPhase>().Property(p => p.ActualMaterialCost).HasPrecision(18, 2);
+            modelBuilder.Entity<ProjectPhase>().Property(p => p.ActualLaborCost).HasPrecision(18, 2);
+
+            // Recepción (Goods Receipt)
+            modelBuilder.Entity<GoodsReceiptItem>().Property(i => i.QuantityOrdered).HasPrecision(18, 4);
+            modelBuilder.Entity<GoodsReceiptItem>().Property(i => i.QuantityReceived).HasPrecision(18, 4);
+            modelBuilder.Entity<GoodsReceiptItem>().Property(i => i.QuantityRejected).HasPrecision(18, 4);
+
+            // Salidas / Vales (Withdrawals)
+            modelBuilder.Entity<StockWithdrawalItem>().Property(i => i.Quantity).HasPrecision(18, 4);
+            modelBuilder.Entity<StockWithdrawalItem>().Property(i => i.UnitCostSnapshot).HasPrecision(18, 2);
+            modelBuilder.Entity<StockWithdrawalItem>().Property(i => i.TotalCost).HasPrecision(18, 2);
+
+            // RRHH
             modelBuilder.Entity<Employee>().Property(e => e.Address).HasDefaultValue(""); 
             modelBuilder.Entity<Employee>().Property(e => e.NegotiatedSalary).HasPrecision(18, 2);
             modelBuilder.Entity<WageScale>().Property(w => w.BasicValue).HasPrecision(18, 2);
             modelBuilder.Entity<WorkLog>().Property(w => w.HourlyRateSnapshot).HasPrecision(18, 2);
             modelBuilder.Entity<WorkLog>().Property(w => w.TotalCost).HasPrecision(18, 2);
             modelBuilder.Entity<ContractorJob>().Property(c => c.AgreedAmount).HasPrecision(18, 2);
+            
+            // Facturación Proveedores (Input)
             modelBuilder.Entity<SupplierInvoice>().Property(i => i.NetAmount).HasPrecision(18, 2);
             modelBuilder.Entity<SupplierInvoice>().Property(i => i.VatAmount).HasPrecision(18, 2);
             modelBuilder.Entity<SupplierInvoice>().Property(i => i.OtherTaxes).HasPrecision(18, 2);
             modelBuilder.Entity<SupplierInvoice>().Property(i => i.TotalAmount).HasPrecision(18, 2);
+            
+            // Detalle Factura (Validación)
+            modelBuilder.Entity<SupplierInvoiceItem>().Property(i => i.Quantity).HasPrecision(18, 4);
+            modelBuilder.Entity<SupplierInvoiceItem>().Property(i => i.UnitPrice).HasPrecision(18, 2);
+            modelBuilder.Entity<SupplierInvoiceItem>().Property(i => i.TotalLineAmount).HasPrecision(18, 2);
+
+            // Auditoría (Excepciones)
+            modelBuilder.Entity<InvoiceException>().Property(i => i.ExpectedValue).HasPrecision(18, 2);
+            modelBuilder.Entity<InvoiceException>().Property(i => i.ActualValue).HasPrecision(18, 2);
+            modelBuilder.Entity<InvoiceException>().Property(i => i.VarianceTotalAmount).HasPrecision(18, 2);
+
+            // Facturación Ventas (Output)
             modelBuilder.Entity<SalesInvoice>().Property(i => i.NetAmount).HasPrecision(18, 2);
             modelBuilder.Entity<SalesInvoice>().Property(i => i.VatAmount).HasPrecision(18, 2);
             modelBuilder.Entity<SalesInvoice>().Property(i => i.GrossTotal).HasPrecision(18, 2);
             modelBuilder.Entity<SalesInvoice>().Property(i => i.RetainageAmount).HasPrecision(18, 2);
             modelBuilder.Entity<SalesInvoice>().Property(i => i.CollectibleAmount).HasPrecision(18, 2);
+            
+            // Tesorería
             modelBuilder.Entity<Wallet>().Property(w => w.Balance).HasPrecision(18, 2);
             modelBuilder.Entity<FinancialTransaction>().Property(t => t.Amount).HasPrecision(18, 2);
             
-            // --- NUEVA CONFIG DE LOGÍSTICA ---
+            // Logística Multi-Depósito
             modelBuilder.Entity<ProductStock>()
-                .HasIndex(ps => new { ps.ProductId, ps.WarehouseId }) // Un producto solo puede tener 1 registro por depósito
+                .HasIndex(ps => new { ps.ProductId, ps.WarehouseId }) 
                 .IsUnique();
-            
             modelBuilder.Entity<ProductStock>().Property(p => p.Quantity).HasPrecision(18, 4);
 
 
@@ -116,7 +178,7 @@ namespace SoctechERP.API.Data
                 new SystemModule { Id = Guid.Parse("30000000-9999-9999-9999-999999999999"), Name = "Gestión de Usuarios", Code = "ADMIN_USERS" }
             );
 
-            // --- SEED DATA (Depósito Central) - NUEVO ---
+            // --- SEED DATA (Depósito Central) ---
             modelBuilder.Entity<Warehouse>().HasData(
                 new Warehouse 
                 { 
@@ -124,7 +186,8 @@ namespace SoctechERP.API.Data
                     Name = "Depósito Central", 
                     Location = "Casa Central", 
                     IsMain = true, 
-                    IsActive = true 
+                    IsActive = true,
+                    // BranchId: OJO -> Asegurate de actualizar esto con un ID real de Branch cuando crees la tabla de Warehouses.
                 }
             );
         }
