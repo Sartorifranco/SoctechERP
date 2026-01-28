@@ -6,14 +6,18 @@ using SoctechERP.API.Models.Enums;
 
 namespace SoctechERP.API.Controllers
 {
-    // DTO para recibir datos sin errores de validación
     public class StockMovementDto
     {
         public Guid ProductId { get; set; }
         public Guid BranchId { get; set; }
         public Guid? SourceWarehouseId { get; set; }
         public Guid? TargetWarehouseId { get; set; }
-        public string MovementType { get; set; } = string.Empty; // Recibimos texto
+        
+        // Campos nuevos para ERP de Costos
+        public Guid? ProjectId { get; set; }
+        public Guid? ProjectPhaseId { get; set; }
+
+        public string MovementType { get; set; } = string.Empty;
         public decimal Quantity { get; set; }
         public decimal UnitCost { get; set; }
         public DateTime Date { get; set; }
@@ -35,30 +39,21 @@ namespace SoctechERP.API.Controllers
         [HttpPost]
         public async Task<ActionResult<StockMovement>> PostStockMovement(StockMovementDto dto)
         {
-            // 1. Convertir String a Enum (Manejo flexible de mayúsculas/minúsculas)
-            // Mapeamos "Purchase" -> PurchaseReception y "Transfer" -> StockTransfer para compatibilidad
+            // 1. Parsing robusto del Enum (Admite "Purchase", "Consumption", etc.)
             StockMovementType movementType;
-
-            if (string.Equals(dto.MovementType, "Purchase", StringComparison.OrdinalIgnoreCase) || 
-                string.Equals(dto.MovementType, "PurchaseReception", StringComparison.OrdinalIgnoreCase))
+            if (Enum.TryParse(dto.MovementType, true, out StockMovementType parsed))
             {
-                movementType = StockMovementType.PurchaseReception;
+                movementType = parsed;
             }
-            else if (string.Equals(dto.MovementType, "Transfer", StringComparison.OrdinalIgnoreCase) || 
-                     string.Equals(dto.MovementType, "StockTransfer", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(dto.MovementType, "Consumption", StringComparison.OrdinalIgnoreCase))
             {
-                movementType = StockMovementType.StockTransfer;
+                movementType = StockMovementType.ProjectConsumption;
             }
             else
             {
-                // Intento genérico para otros tipos
-                if (!Enum.TryParse(dto.MovementType, true, out movementType))
-                {
-                    return BadRequest($"Tipo de movimiento '{dto.MovementType}' no válido.");
-                }
+                return BadRequest($"Tipo de movimiento '{dto.MovementType}' no reconocido.");
             }
 
-            // 2. Crear la Entidad
             var movement = new StockMovement
             {
                 Id = Guid.NewGuid(),
@@ -66,6 +61,8 @@ namespace SoctechERP.API.Controllers
                 BranchId = dto.BranchId,
                 SourceWarehouseId = dto.SourceWarehouseId,
                 TargetWarehouseId = dto.TargetWarehouseId,
+                ProjectId = dto.ProjectId,          // Imputación de Obra
+                ProjectPhaseId = dto.ProjectPhaseId, // Imputación de Fase
                 MovementType = movementType,
                 Quantity = dto.Quantity,
                 UnitCost = dto.UnitCost,
@@ -74,27 +71,33 @@ namespace SoctechERP.API.Controllers
                 Reference = dto.Reference
             };
 
-            // 3. Impactar Stock Físico
             using var transaction = await _context.Database.BeginTransactionAsync();
             try 
             {
-                // A. Si es RECEPCIÓN DE COMPRA (Suma al destino)
-                if (movement.MovementType == StockMovementType.PurchaseReception && movement.TargetWarehouseId.HasValue)
+                // A. RECEPCIÓN (Suma)
+                if (movementType == StockMovementType.PurchaseReception && movement.TargetWarehouseId.HasValue)
                 {
                     await AddStockAsync(movement.ProductId, movement.TargetWarehouseId.Value, movement.Quantity);
                 }
-                // B. Si es TRANSFERENCIA (Resta origen, Suma destino)
-                else if (movement.MovementType == StockMovementType.StockTransfer && movement.SourceWarehouseId.HasValue && movement.TargetWarehouseId.HasValue)
+                // B. TRANSFERENCIA (Resta Origen -> Suma Destino)
+                else if (movementType == StockMovementType.StockTransfer && movement.SourceWarehouseId.HasValue && movement.TargetWarehouseId.HasValue)
                 {
                     await RemoveStockAsync(movement.ProductId, movement.SourceWarehouseId.Value, movement.Quantity);
                     await AddStockAsync(movement.ProductId, movement.TargetWarehouseId.Value, movement.Quantity);
+                }
+                // C. CONSUMO DE OBRA (Resta Origen -> Gasto) <--- ¡ESTO FALTABA!
+                else if (movementType == StockMovementType.ProjectConsumption && movement.SourceWarehouseId.HasValue)
+                {
+                    await RemoveStockAsync(movement.ProductId, movement.SourceWarehouseId.Value, movement.Quantity);
+                    
+                    // Aquí en el futuro agregaremos la lógica que suma $$$ a la tabla de Costos del Proyecto
                 }
                 
                 _context.StockMovements.Add(movement);
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return Ok(new { message = "Movimiento registrado con éxito", id = movement.Id });
+                return Ok(new { message = "Movimiento registrado correctamente", id = movement.Id });
             }
             catch (Exception ex)
             {
@@ -103,14 +106,10 @@ namespace SoctechERP.API.Controllers
             }
         }
 
-        // Métodos auxiliares
         private async Task AddStockAsync(Guid productId, Guid warehouseId, decimal qty)
         {
-            var stock = await _context.ProductStocks
-                .FirstOrDefaultAsync(ps => ps.ProductId == productId && ps.WarehouseId == warehouseId);
-
-            if (stock == null)
-            {
+            var stock = await _context.ProductStocks.FirstOrDefaultAsync(ps => ps.ProductId == productId && ps.WarehouseId == warehouseId);
+            if (stock == null) {
                 stock = new ProductStock { ProductId = productId, WarehouseId = warehouseId, Quantity = 0 };
                 _context.ProductStocks.Add(stock);
             }
@@ -119,12 +118,8 @@ namespace SoctechERP.API.Controllers
 
         private async Task RemoveStockAsync(Guid productId, Guid warehouseId, decimal qty)
         {
-            var stock = await _context.ProductStocks
-                .FirstOrDefaultAsync(ps => ps.ProductId == productId && ps.WarehouseId == warehouseId);
-
-            if (stock == null || stock.Quantity < qty)
-                throw new Exception("Stock insuficiente en el depósito de origen.");
-
+            var stock = await _context.ProductStocks.FirstOrDefaultAsync(ps => ps.ProductId == productId && ps.WarehouseId == warehouseId);
+            if (stock == null || stock.Quantity < qty) throw new Exception($"Stock insuficiente. Disponible: {stock?.Quantity ?? 0}");
             stock.Quantity -= qty;
         }
     }
