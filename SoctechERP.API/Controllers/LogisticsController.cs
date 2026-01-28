@@ -8,7 +8,6 @@ namespace SoctechERP.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    // [Authorize] // Descomenta esto cuando quieras activar seguridad full
     public class LogisticsController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -18,8 +17,6 @@ namespace SoctechERP.API.Controllers
             _context = context;
         }
 
-        // --- GESTIÓN DE DEPÓSITOS (ALMACENES / OBRAS / CAMIONETAS) ---
-
         // 1. Listar todos los depósitos activos
         [HttpGet("warehouses")]
         public async Task<IActionResult> GetWarehouses()
@@ -27,7 +24,7 @@ namespace SoctechERP.API.Controllers
             return Ok(await _context.Warehouses.Where(w => w.IsActive).ToListAsync());
         }
 
-        // 2. Crear un nuevo depósito (Ej: "Pañol Obra Kennedy")
+        // 2. Crear un nuevo depósito
         [HttpPost("warehouses")]
         public async Task<IActionResult> CreateWarehouse(Warehouse warehouse)
         {
@@ -37,16 +34,13 @@ namespace SoctechERP.API.Controllers
             return Ok(warehouse);
         }
 
-        // --- CONSULTA DE STOCK AVANZADA (MATRIX) ---
-
-        // 3. Ver Stock Detallado de un Producto (¿Dónde está el cemento?)
+        // 3. Ver Stock Detallado de un Producto
         [HttpGet("stock-detail/{productId}")]
         public async Task<IActionResult> GetProductStockDetail(Guid productId)
         {
-            // Buscamos todas las existencias de ese producto en todos los depósitos
             var stocks = await _context.ProductStocks
                 .Include(ps => ps.Warehouse)
-                .Where(ps => ps.ProductId == productId && ps.Quantity != 0) // Solo donde hay algo
+                .Where(ps => ps.ProductId == productId && ps.Quantity != 0)
                 .Select(ps => new 
                 {
                     Depot = ps.Warehouse.Name,
@@ -55,13 +49,11 @@ namespace SoctechERP.API.Controllers
                 })
                 .ToListAsync();
 
-            // Calculamos el total general
             var total = stocks.Sum(s => s.Quantity);
-
             return Ok(new { Total = total, Breakdown = stocks });
         }
 
-        // 4. Ver todo el stock de un Depósito específico (Inventario de Obra)
+        // 4. Ver todo el stock de un Depósito (CORREGIDO)
         [HttpGet("warehouse-inventory/{warehouseId}")]
         public async Task<IActionResult> GetWarehouseInventory(Guid warehouseId)
         {
@@ -70,6 +62,7 @@ namespace SoctechERP.API.Controllers
                 .Where(ps => ps.WarehouseId == warehouseId && ps.Quantity != 0)
                 .Select(ps => new
                 {
+                    ProductId = ps.ProductId, // <--- CRÍTICO: Agregado para que el frontend no falle
                     Product = ps.Product.Name,
                     Sku = ps.Product.Sku,
                     Quantity = ps.Quantity

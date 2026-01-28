@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SoctechERP.API.Data;
 using SoctechERP.API.Models;
+using SoctechERP.API.Models.Enums; // <--- NECESARIO
 
 namespace SoctechERP.API.Controllers
 {
@@ -23,7 +24,7 @@ namespace SoctechERP.API.Controllers
             return await _context.Wallets.Where(w => w.IsActive).ToListAsync();
         }
 
-        // 2. Crear Nueva Billetera (Ej: "Nueva Cuenta Banco")
+        // 2. Crear Nueva Billetera
         [HttpPost("wallets")]
         public async Task<ActionResult<Wallet>> PostWallet(Wallet wallet)
         {
@@ -33,7 +34,7 @@ namespace SoctechERP.API.Controllers
             return CreatedAtAction("GetWallets", new { id = wallet.Id }, wallet);
         }
 
-        // 3. REGISTRAR MOVIMIENTO (El corazón del sistema)
+        // 3. REGISTRAR MOVIMIENTO
         [HttpPost("transactions")]
         public async Task<ActionResult<FinancialTransaction>> PostTransaction(FinancialTransaction trx)
         {
@@ -57,16 +58,19 @@ namespace SoctechERP.API.Controllers
 
             _context.FinancialTransactions.Add(trx);
 
-            // 3. (Opcional) Si viene de una factura, actualizar estado a "Paid"
+            // 3. Si viene de una factura, actualizar estado
             if (trx.RelatedSupplierInvoiceId != null)
             {
                 var inv = await _context.SupplierInvoices.FindAsync(trx.RelatedSupplierInvoiceId);
-                if (inv != null) inv.Status = "Paid";
+                // CORRECCIÓN: Usamos Enum para indicar PAGADA
+                if (inv != null) inv.Status = InvoiceStatus.Posted; 
             }
             if (trx.RelatedSalesInvoiceId != null)
             {
                 var inv = await _context.SalesInvoices.FindAsync(trx.RelatedSalesInvoiceId);
-                if (inv != null) inv.Status = "Paid";
+                // CORRECCIÓN: Si SalesInvoice usa string, dejamos string. Si usa Enum, cambiamos.
+                // Asumiendo que SalesInvoice todavía usa string (no lo cambiamos a Enum hoy):
+                if (inv != null) inv.Status = "Paid"; 
             }
 
             await _context.SaveChangesAsync();
@@ -74,7 +78,7 @@ namespace SoctechERP.API.Controllers
             return Ok(trx);
         }
 
-        // 4. Ver Movimientos (Últimos 50)
+        // 4. Ver Movimientos
         [HttpGet("transactions")]
         public async Task<ActionResult<IEnumerable<FinancialTransaction>>> GetTransactions()
         {

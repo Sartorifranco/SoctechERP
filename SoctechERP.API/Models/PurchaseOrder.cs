@@ -10,13 +10,16 @@ namespace SoctechERP.API.Models
         [Key]
         public Guid Id { get; set; } = Guid.NewGuid();
 
-        public string OrderNumber { get; set; } = string.Empty; // Ej: OC-2024-001
+        public string OrderNumber { get; set; } = string.Empty;
 
-        public Guid ProviderId { get; set; } // A quién le compramos
+        public Guid ProviderId { get; set; }
+        
+        // Faltaba este campo para vincular la compra a la Obra
+        public Guid? ProjectId { get; set; } 
         
         public DateTime Date { get; set; } = DateTime.UtcNow;
         
-        public string Status { get; set; } = "Pending"; // Pending, Received, Cancelled
+        public string Status { get; set; } = "Pending"; 
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal TotalAmount { get; set; }

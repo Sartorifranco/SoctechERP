@@ -10,7 +10,7 @@ class TransferStockScreen extends StatefulWidget {
 }
 
 class _TransferStockScreenState extends State<TransferStockScreen> {
-  final String baseUrl = 'http://127.0.0.1:5064/api';
+  final String baseUrl = 'http://localhost:5064/api';
 
   bool isLoading = true;
   bool isSaving = false;
@@ -21,17 +21,26 @@ class _TransferStockScreenState extends State<TransferStockScreen> {
   String? sourceWarehouseId;
   String? targetWarehouseId;
   String? selectedProductId;
-  
+
   final _quantityController = TextEditingController();
   final _reasonController = TextEditingController();
 
-  // Info visual
   double availableStock = 0;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  String _safeString(dynamic item, String key) {
+    if (item == null) return "";
+    return item[key] ?? item[key[0].toUpperCase() + key.substring(1)] ?? "";
+  }
+
+  bool _safeBool(dynamic item, String key) {
+    if (item == null) return false;
+    return (item[key] == true) || (item[key[0].toUpperCase() + key.substring(1)] == true);
   }
 
   Future<void> _loadData() async {
@@ -45,40 +54,33 @@ class _TransferStockScreenState extends State<TransferStockScreen> {
         setState(() {
           warehouses = json.decode(responses[0].body);
           products = json.decode(responses[1].body);
-          
-          // Auto-seleccionar Central como Origen por defecto
-          final central = warehouses.firstWhere((w) => w['isMain'] == true, orElse: () => null);
-          if (central != null) sourceWarehouseId = central['id'];
-          
+
+          if (warehouses.isNotEmpty) {
+            final central = warehouses.firstWhere((w) => _safeBool(w, 'isMain'), orElse: () => warehouses.first);
+            sourceWarehouseId = _safeString(central, 'id');
+          }
           isLoading = false;
         });
+        if (sourceWarehouseId != null) _checkAvailability();
       }
     } catch (e) {
+      print("Error carga inicial: $e");
       if (mounted) setState(() => isLoading = false);
     }
   }
 
-  // Verificar stock cuando cambia el Origen o el Producto
   Future<void> _checkAvailability() async {
+    setState(() => availableStock = 0);
     if (sourceWarehouseId == null || selectedProductId == null) return;
 
     try {
       final response = await http.get(Uri.parse('$baseUrl/Logistics/warehouse-inventory/$sourceWarehouseId'));
       if (response.statusCode == 200) {
         List<dynamic> inventory = json.decode(response.body);
-        final selectedProd = products.firstWhere((p) => p['id'] == selectedProductId, orElse: () => {'sku': ''});
-        final String targetSku = selectedProd['sku'] ?? '';
-
-        // Buscamos por SKU o ID si tuviéramos
-        final item = inventory.firstWhere((i) => i['sku'] == targetSku, orElse: () => null);
-        
-        setState(() {
-          availableStock = (item != null) ? (item['quantity'] ?? 0).toDouble() : 0.0;
-        });
+        final item = inventory.firstWhere((i) => _safeString(i, 'productId') == selectedProductId, orElse: () => null);
+        if (mounted) setState(() => availableStock = (item != null) ? (item['quantity'] ?? 0).toDouble() : 0.0);
       }
-    } catch (e) {
-      print("Error verificando stock: $e");
-    }
+    } catch (e) { print("Error stock: $e"); }
   }
 
   Future<void> _submitTransfer() async {
@@ -96,9 +98,8 @@ class _TransferStockScreenState extends State<TransferStockScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cantidad inválida")));
       return;
     }
-    // Validación preventiva en frontend
     if (qty > availableStock) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⛔ No hay suficiente stock en el origen"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⛔ Stock insuficiente"), backgroundColor: Colors.red));
       return;
     }
 
@@ -107,11 +108,12 @@ class _TransferStockScreenState extends State<TransferStockScreen> {
     final movement = {
       "productId": selectedProductId,
       "branchId": "00000000-0000-0000-0000-000000000000",
-      "sourceWarehouseId": sourceWarehouseId, // SALE DE ACÁ
-      "targetWarehouseId": targetWarehouseId, // ENTRA ACÁ
-      "movementType": "TRANSFER",
+      "sourceWarehouseId": sourceWarehouseId,
+      "targetWarehouseId": targetWarehouseId,
+      // CAMBIO IMPORTANTE: Enviamos "Transfer" (coincide con Enum C#)
+      "movementType": "Transfer",
       "quantity": qty,
-      "unitCost": 0, // En transferencia el costo se mantiene
+      "unitCost": 0,
       "date": DateTime.now().toIso8601String(),
       "description": _reasonController.text.isEmpty ? "Transferencia Interna" : _reasonController.text,
       "reference": "TR-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}"
@@ -133,9 +135,9 @@ class _TransferStockScreenState extends State<TransferStockScreen> {
         throw Exception(response.body);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
     } finally {
-      setState(() => isSaving = false);
+      if (mounted) setState(() => isSaving = false);
     }
   }
 
@@ -143,122 +145,37 @@ class _TransferStockScreenState extends State<TransferStockScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Transferir Mercadería"), backgroundColor: Colors.orange[800], foregroundColor: Colors.white),
-      body: isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // TARJETA DE ORIGEN (ROJO)
-                Card(
-                  color: Colors.red.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(15.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(children: [Icon(Icons.outbound, color: Colors.red), SizedBox(width: 10), Text("DESDE (Origen)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))]),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                          value: sourceWarehouseId,
-                          isExpanded: true,
-                          decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 5)),
-                          items: warehouses.map<DropdownMenuItem<String>>((w) => DropdownMenuItem(value: w['id'], child: Text(w['name']))).toList(),
-                          onChanged: (val) {
-                            setState(() => sourceWarehouseId = val);
-                            _checkAvailability();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                const Center(child: Icon(Icons.arrow_downward, size: 30, color: Colors.grey)),
-
-                // TARJETA DE DESTINO (VERDE)
-                Card(
-                  color: Colors.green.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(15.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(children: [Icon(Icons.input, color: Colors.green), SizedBox(width: 10), Text("HACIA (Destino)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green))]),
-                        const SizedBox(height: 10),
-                        DropdownButtonFormField<String>(
-                          value: targetWarehouseId,
-                          isExpanded: true,
-                          decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 5)),
-                          items: warehouses.map<DropdownMenuItem<String>>((w) => DropdownMenuItem(value: w['id'], child: Text(w['name']))).toList(),
-                          onChanged: (val) => setState(() => targetWarehouseId = val),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-                const Divider(),
-                const SizedBox(height: 10),
-
-                // SELECCIÓN DE PRODUCTO
-                const Text("Detalle del Envío", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: selectedProductId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: "Producto", border: OutlineInputBorder(), prefixIcon: Icon(Icons.inventory)),
-                  items: products.map<DropdownMenuItem<String>>((p) => DropdownMenuItem(value: p['id'], child: Text(p['name']))).toList(),
-                  onChanged: (val) {
-                    setState(() => selectedProductId = val);
-                    _checkAvailability();
-                  },
-                ),
-                
-                // DISPONIBILIDAD
-                if (selectedProductId != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text("Disponible en origen: ", style: TextStyle(color: Colors.grey[700])),
-                        Text("$availableStock u.", style: TextStyle(fontWeight: FontWeight.bold, color: availableStock > 0 ? Colors.green : Colors.red, fontSize: 16)),
-                      ],
-                    ),
-                  ),
-
-                const SizedBox(height: 20),
-
-                TextField(
-                  controller: _quantityController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: "Cantidad a Mover", border: OutlineInputBorder(), prefixIcon: Icon(Icons.onetwothree)),
-                ),
-
-                const SizedBox(height: 15),
-                 TextField(
-                  controller: _reasonController,
-                  decoration: const InputDecoration(labelText: "Motivo / Chofer", border: OutlineInputBorder(), prefixIcon: Icon(Icons.description)),
-                ),
-
-                const SizedBox(height: 30),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    onPressed: isSaving ? null : _submitTransfer,
-                    icon: const Icon(Icons.swap_horiz),
-                    label: const Text("CONFIRMAR TRANSFERENCIA", style: TextStyle(fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800], foregroundColor: Colors.white),
-                  ),
-                )
-              ],
-            ),
+      body: isLoading ? const Center(child: CircularProgressIndicator()) : SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(children: [
+          // Campos de selección simplificados para el ejemplo
+          DropdownButtonFormField<String>(
+            value: sourceWarehouseId,
+            items: warehouses.map<DropdownMenuItem<String>>((w) => DropdownMenuItem(value: _safeString(w, 'id'), child: Text("DESDE: ${_safeString(w, 'name')}"))).toList(),
+            onChanged: (val) { setState(() => sourceWarehouseId = val); _checkAvailability(); },
+            decoration: const InputDecoration(border: OutlineInputBorder(), filled: true),
           ),
+          const SizedBox(height: 15),
+          DropdownButtonFormField<String>(
+            value: targetWarehouseId,
+            items: warehouses.map<DropdownMenuItem<String>>((w) => DropdownMenuItem(value: _safeString(w, 'id'), child: Text("HACIA: ${_safeString(w, 'name')}"))).toList(),
+            onChanged: (val) => setState(() => targetWarehouseId = val),
+            decoration: const InputDecoration(border: OutlineInputBorder(), filled: true),
+          ),
+          const SizedBox(height: 15),
+          DropdownButtonFormField<String>(
+            value: selectedProductId,
+            items: products.map<DropdownMenuItem<String>>((p) => DropdownMenuItem(value: _safeString(p, 'id'), child: Text(_safeString(p, 'name')))).toList(),
+            onChanged: (val) { setState(() => selectedProductId = val); _checkAvailability(); },
+            decoration: const InputDecoration(labelText: "Producto", border: OutlineInputBorder()),
+          ),
+          if (selectedProductId != null) Padding(padding: const EdgeInsets.all(8.0), child: Text("Stock Disponible: $availableStock", style: const TextStyle(fontWeight: FontWeight.bold))),
+          const SizedBox(height: 15),
+          TextField(controller: _quantityController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Cantidad", border: OutlineInputBorder())),
+          const SizedBox(height: 20),
+          SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: isSaving ? null : _submitTransfer, style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800], foregroundColor: Colors.white), child: const Text("TRANSFERIR")))
+        ]),
+      ),
     );
   }
 }

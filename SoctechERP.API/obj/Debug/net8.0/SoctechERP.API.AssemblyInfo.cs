@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SoctechERP.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5bdb652b2540f91a32b981a8531ecf08c1bf4bea")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+acda48f9eab5fe97819a2c25d01e4d13f4fbe156")]
 [assembly: System.Reflection.AssemblyProductAttribute("SoctechERP.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SoctechERP.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

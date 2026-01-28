@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SoctechERP.API.Data;
 using SoctechERP.API.Models;
+using SoctechERP.API.Models.Enums; // <--- NECESARIO
 
 namespace SoctechERP.API.Controllers
 {
@@ -54,11 +55,11 @@ namespace SoctechERP.API.Controllers
                     var product = await _context.Products.FindAsync(item.ProductId);
                     if (product == null) throw new Exception($"Producto no encontrado ID: {item.ProductId}");
 
-                    // 4. Validar Stock (CORREGIDO: Casting a decimal)
+                    // 4. Validar Stock
                     if (product.Stock < (decimal)item.Quantity)
                         throw new Exception($"Stock insuficiente para '{product.Name}'. Disponible: {product.Stock}");
 
-                    // 5. Restar Stock (CORREGIDO: Casting a decimal)
+                    // 5. Restar Stock
                     product.Stock -= (decimal)item.Quantity;
 
                     // 6. Validar nombre de la Fase
@@ -69,13 +70,17 @@ namespace SoctechERP.API.Controllers
                     // 7. Generar Movimiento (StockMovement)
                     var movement = new StockMovement
                     {
+                        Id = Guid.NewGuid(),
                         ProductId = item.ProductId,
                         ProjectId = dispatch.ProjectId,
                         
-                        // Cantidad negativa = Salida. Convertimos double a decimal.
+                        // Cantidad negativa = Salida
                         Quantity = -1 * (decimal)item.Quantity, 
                         
-                        MovementType = "DISPATCH",
+                        // CORRECCIÓN: Usamos el Enum
+                        MovementType = StockMovementType.ProjectConsumption,
+                        
+                        UnitCost = product.CostPrice, // <--- Importante guardar el costo histórico
                         Date = DateTime.UtcNow,
                         Description = $"Salida a {project.Name} ({phaseName}) - {dispatch.Note}"
                     };

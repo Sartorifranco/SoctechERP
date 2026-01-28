@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SoctechERP.API.Data;
 using SoctechERP.API.Models;
+using SoctechERP.API.Models.Enums; // <--- NECESARIO
 
 namespace SoctechERP.API.Controllers
 {
@@ -23,7 +24,6 @@ namespace SoctechERP.API.Controllers
             return await _context.Projects.ToListAsync();
         }
 
-        // --- NUEVO MÉTODO AGREGADO (SOLUCIÓN A "CARGANDO NOMBRE DE OBRA") ---
         // 2. GET: api/projects/{id}
         [HttpGet("{id}")]
         public async Task<ActionResult<Project>> GetProject(Guid id)
@@ -32,12 +32,13 @@ namespace SoctechERP.API.Controllers
             if (project == null) return NotFound();
             return project;
         }
-        // --------------------------------------------------------------------
 
         // 3. POST: api/projects
         [HttpPost]
         public async Task<ActionResult<Project>> PostProject(Project project)
         {
+            project.Id = Guid.NewGuid();
+            project.CreatedAt = DateTime.UtcNow; // Asegura fecha
             _context.Projects.Add(project);
             await _context.SaveChangesAsync();
             return CreatedAtAction("GetProjects", new { id = project.Id }, project);
@@ -52,7 +53,8 @@ namespace SoctechERP.API.Controllers
 
             // Costo de Materiales
             var totalSpent = await _context.StockMovements
-                .Where(m => m.ProjectId == projectId && m.MovementType == "CONSUMPTION")
+                // CORRECCIÓN: Usamos Enum
+                .Where(m => m.ProjectId == projectId && m.MovementType == StockMovementType.ProjectConsumption)
                 .SumAsync(m => Math.Abs(m.Quantity) * m.UnitCost);
 
             return Ok(new 

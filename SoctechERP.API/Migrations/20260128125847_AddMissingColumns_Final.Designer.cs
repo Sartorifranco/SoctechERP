@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SoctechERP.API.Data;
@@ -11,9 +12,11 @@ using SoctechERP.API.Data;
 namespace SoctechERP.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260128125847_AddMissingColumns_Final")]
+    partial class AddMissingColumns_Final
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -28,29 +31,26 @@ namespace SoctechERP.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Address")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("Location")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<bool>("IsWarehouse")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
                     b.HasKey("Id");
 
                     b.ToTable("Branches");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-                            IsActive = true,
-                            Location = "Córdoba Capital",
-                            Name = "Casa Central"
-                        });
                 });
 
             modelBuilder.Entity("SoctechERP.API.Models.Company", b =>
@@ -120,6 +120,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("AgreedAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid>("ContractorId")
@@ -215,7 +216,9 @@ namespace SoctechERP.API.Migrations
 
                     b.Property<string>("Address")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("");
 
                     b.Property<string>("Category")
                         .IsRequired()
@@ -254,6 +257,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<double?>("NegotiatedSalary")
+                        .HasPrecision(18, 2)
                         .HasColumnType("double precision");
 
                     b.Property<string>("Phone")
@@ -282,6 +286,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("Date")
@@ -392,12 +397,15 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("QuantityOrdered")
+                        .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("QuantityReceived")
+                        .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("QuantityRejected")
+                        .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("RejectionReason")
@@ -417,6 +425,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("ActualValue")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Description")
@@ -424,6 +433,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("ExpectedValue")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<bool>("IsResolved")
@@ -450,6 +460,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("VarianceTotalAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -490,6 +501,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -594,15 +606,19 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("ActualLaborCost")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("ActualMaterialCost")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("Budget")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("BudgetedMaterialCost")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Description")
@@ -739,6 +755,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("CollectibleAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Concept")
@@ -746,6 +763,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("GrossTotal")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("InvoiceDate")
@@ -760,6 +778,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid>("ProjectId")
@@ -770,6 +789,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("RetainageAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("RetainagePercentage")
@@ -784,6 +804,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("VatPercentage")
@@ -920,15 +941,18 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("StockWithdrawalId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("TotalCost")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("UnitCostSnapshot")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -970,9 +994,11 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("character varying(5)");
 
                     b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("OtherTaxes")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid?>("ProjectId")
@@ -996,9 +1022,11 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -1021,15 +1049,18 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<Guid>("SupplierInvoiceId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("TotalLineAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -1060,21 +1091,57 @@ namespace SoctechERP.API.Migrations
                     b.HasData(
                         new
                         {
-                            Id = new Guid("ffe7149f-4d29-413b-a489-d1cc5c2f6fe9"),
+                            Id = new Guid("aaaaaaaa-1111-1111-1111-111111111111"),
                             Code = "DASHBOARD",
-                            Name = "Tablero"
+                            Name = "Tablero de Control"
                         },
                         new
                         {
-                            Id = new Guid("6ef2516e-51d1-4a73-b8d0-8caa511f8e01"),
+                            Id = new Guid("bbbbbbbb-2222-2222-2222-222222222222"),
                             Code = "STOCK_IN",
-                            Name = "Stock"
+                            Name = "Entrada Mercadería (Stock)"
                         },
                         new
                         {
-                            Id = new Guid("21f40095-1a6c-408f-89d7-fefd431939b8"),
+                            Id = new Guid("cccccccc-3333-3333-3333-333333333333"),
+                            Code = "STOCK_OUT",
+                            Name = "Salida / Consumo (Stock)"
+                        },
+                        new
+                        {
+                            Id = new Guid("dddddddd-4444-4444-4444-444444444444"),
+                            Code = "PURCHASE_ORDERS",
+                            Name = "Órdenes de Compra"
+                        },
+                        new
+                        {
+                            Id = new Guid("eeeeeeee-5555-5555-5555-555555555555"),
+                            Code = "TREASURY",
+                            Name = "Tesorería (Caja)"
+                        },
+                        new
+                        {
+                            Id = new Guid("ffffffff-6666-6666-6666-666666666666"),
+                            Code = "SALES",
+                            Name = "Ventas y Facturación"
+                        },
+                        new
+                        {
+                            Id = new Guid("10000000-7777-7777-7777-777777777777"),
                             Code = "PROJECTS",
-                            Name = "Proyectos"
+                            Name = "Obras y Proyectos"
+                        },
+                        new
+                        {
+                            Id = new Guid("20000000-8888-8888-8888-888888888888"),
+                            Code = "HR",
+                            Name = "RRHH y Personal"
+                        },
+                        new
+                        {
+                            Id = new Guid("30000000-9999-9999-9999-999999999999"),
+                            Code = "ADMIN_USERS",
+                            Name = "Gestión de Usuarios"
                         });
                 });
 
@@ -1132,6 +1199,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("BasicValue")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("CategoryName")
@@ -1154,6 +1222,68 @@ namespace SoctechERP.API.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("WageScales");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
+                            BasicValue = 6500m,
+                            CategoryName = "Oficial Especializado",
+                            IsActive = true,
+                            Union = "UOCRA",
+                            ValidFrom = new DateTime(2026, 1, 28, 9, 58, 47, 680, DateTimeKind.Local).AddTicks(1324),
+                            ZonePercentage = 0.0
+                        },
+                        new
+                        {
+                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
+                            BasicValue = 5800m,
+                            CategoryName = "Oficial",
+                            IsActive = true,
+                            Union = "UOCRA",
+                            ValidFrom = new DateTime(2026, 1, 28, 9, 58, 47, 680, DateTimeKind.Local).AddTicks(1337),
+                            ZonePercentage = 0.0
+                        },
+                        new
+                        {
+                            Id = new Guid("33333333-3333-3333-3333-333333333333"),
+                            BasicValue = 5200m,
+                            CategoryName = "Medio Oficial",
+                            IsActive = true,
+                            Union = "UOCRA",
+                            ValidFrom = new DateTime(2026, 1, 28, 9, 58, 47, 680, DateTimeKind.Local).AddTicks(1339),
+                            ZonePercentage = 0.0
+                        },
+                        new
+                        {
+                            Id = new Guid("44444444-4444-4444-4444-444444444444"),
+                            BasicValue = 4900m,
+                            CategoryName = "Ayudante",
+                            IsActive = true,
+                            Union = "UOCRA",
+                            ValidFrom = new DateTime(2026, 1, 28, 9, 58, 47, 680, DateTimeKind.Local).AddTicks(1341),
+                            ZonePercentage = 0.0
+                        },
+                        new
+                        {
+                            Id = new Guid("55555555-5555-5555-5555-555555555555"),
+                            BasicValue = 950000m,
+                            CategoryName = "Administrativo A",
+                            IsActive = true,
+                            Union = "UECARA",
+                            ValidFrom = new DateTime(2026, 1, 28, 9, 58, 47, 680, DateTimeKind.Local).AddTicks(1343),
+                            ZonePercentage = 0.0
+                        },
+                        new
+                        {
+                            Id = new Guid("66666666-6666-6666-6666-666666666666"),
+                            BasicValue = 1100000m,
+                            CategoryName = "Administrativo B",
+                            IsActive = true,
+                            Union = "UECARA",
+                            ValidFrom = new DateTime(2026, 1, 28, 9, 58, 47, 680, DateTimeKind.Local).AddTicks(1345),
+                            ZonePercentage = 0.0
+                        });
                 });
 
             modelBuilder.Entity("SoctechERP.API.Models.Wallet", b =>
@@ -1163,6 +1293,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Balance")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Currency")
@@ -1216,10 +1347,10 @@ namespace SoctechERP.API.Migrations
                         new
                         {
                             Id = new Guid("dddddddd-dddd-dddd-dddd-dddddddddddd"),
-                            BranchId = new Guid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                            BranchId = new Guid("00000000-0000-0000-0000-000000000000"),
                             IsActive = true,
                             IsMain = true,
-                            Location = "Nave Principal",
+                            Location = "Casa Central",
                             Name = "Depósito Central"
                         });
                 });
@@ -1241,6 +1372,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("HourlyRateSnapshot")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<double>("HoursWorked")
@@ -1250,6 +1382,7 @@ namespace SoctechERP.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("TotalCost")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");

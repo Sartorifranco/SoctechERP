@@ -10,16 +10,19 @@ namespace SoctechERP.API.Models
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
-        public string Name { get; set; } = string.Empty; // Ej: "Depósito Central", "Pañol Obra A"
+        public string Name { get; set; } = string.Empty; 
 
-        public string Location { get; set; } = string.Empty; // Dirección física
+        public string Location { get; set; } = string.Empty; 
 
-        public bool IsMain { get; set; } = false; // ¿Es el depósito principal por defecto?
+        // --- ESTA ES LA PROPIEDAD QUE FALTABA Y CAUSABA EL ERROR ---
+        public Guid BranchId { get; set; } 
+        // -----------------------------------------------------------
+
+        public bool IsMain { get; set; } = false; 
         public bool IsActive { get; set; } = true;
     }
 
-    // 2. EL STOCK PUNTUAL (La relación Producto <-> Depósito)
-    // Esto responde: "¿Cuánto hay de ESTE producto en ESTE lugar?"
+    // 2. EL STOCK PUNTUAL
     public class ProductStock
     {
         [Key]
@@ -32,9 +35,8 @@ namespace SoctechERP.API.Models
         public Guid WarehouseId { get; set; }
 
         [Column(TypeName = "decimal(18,4)")]
-        public decimal Quantity { get; set; } = 0; // Cantidad en este depósito específico
+        public decimal Quantity { get; set; } = 0; 
 
-        // Propiedades de Navegación
         public Product? Product { get; set; }
         public Warehouse? Warehouse { get; set; }
     }

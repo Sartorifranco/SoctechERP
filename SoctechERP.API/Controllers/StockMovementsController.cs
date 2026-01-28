@@ -2,9 +2,25 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SoctechERP.API.Data;
 using SoctechERP.API.Models;
+using SoctechERP.API.Models.Enums;
 
 namespace SoctechERP.API.Controllers
 {
+    // DTO para recibir datos sin errores de validación
+    public class StockMovementDto
+    {
+        public Guid ProductId { get; set; }
+        public Guid BranchId { get; set; }
+        public Guid? SourceWarehouseId { get; set; }
+        public Guid? TargetWarehouseId { get; set; }
+        public string MovementType { get; set; } = string.Empty; // Recibimos texto
+        public decimal Quantity { get; set; }
+        public decimal UnitCost { get; set; }
+        public DateTime Date { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public string Reference { get; set; } = string.Empty;
+    }
+
     [Route("api/[controller]")]
     [ApiController]
     public class StockMovementsController : ControllerBase
@@ -16,98 +32,100 @@ namespace SoctechERP.API.Controllers
             _context = context;
         }
 
-        // GET: api/StockMovements
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<StockMovement>>> GetStockMovements()
+        [HttpPost]
+        public async Task<ActionResult<StockMovement>> PostStockMovement(StockMovementDto dto)
         {
-            return await _context.StockMovements
-                .Include(s => s.SourceWarehouse) // Incluimos info de depósitos
-                .Include(s => s.TargetWarehouse)
-                .OrderByDescending(s => s.Date)
-                .ToListAsync();
+            // 1. Convertir String a Enum (Manejo flexible de mayúsculas/minúsculas)
+            // Mapeamos "Purchase" -> PurchaseReception y "Transfer" -> StockTransfer para compatibilidad
+            StockMovementType movementType;
+
+            if (string.Equals(dto.MovementType, "Purchase", StringComparison.OrdinalIgnoreCase) || 
+                string.Equals(dto.MovementType, "PurchaseReception", StringComparison.OrdinalIgnoreCase))
+            {
+                movementType = StockMovementType.PurchaseReception;
+            }
+            else if (string.Equals(dto.MovementType, "Transfer", StringComparison.OrdinalIgnoreCase) || 
+                     string.Equals(dto.MovementType, "StockTransfer", StringComparison.OrdinalIgnoreCase))
+            {
+                movementType = StockMovementType.StockTransfer;
+            }
+            else
+            {
+                // Intento genérico para otros tipos
+                if (!Enum.TryParse(dto.MovementType, true, out movementType))
+                {
+                    return BadRequest($"Tipo de movimiento '{dto.MovementType}' no válido.");
+                }
+            }
+
+            // 2. Crear la Entidad
+            var movement = new StockMovement
+            {
+                Id = Guid.NewGuid(),
+                ProductId = dto.ProductId,
+                BranchId = dto.BranchId,
+                SourceWarehouseId = dto.SourceWarehouseId,
+                TargetWarehouseId = dto.TargetWarehouseId,
+                MovementType = movementType,
+                Quantity = dto.Quantity,
+                UnitCost = dto.UnitCost,
+                Date = dto.Date.ToUniversalTime(),
+                Description = dto.Description,
+                Reference = dto.Reference
+            };
+
+            // 3. Impactar Stock Físico
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try 
+            {
+                // A. Si es RECEPCIÓN DE COMPRA (Suma al destino)
+                if (movement.MovementType == StockMovementType.PurchaseReception && movement.TargetWarehouseId.HasValue)
+                {
+                    await AddStockAsync(movement.ProductId, movement.TargetWarehouseId.Value, movement.Quantity);
+                }
+                // B. Si es TRANSFERENCIA (Resta origen, Suma destino)
+                else if (movement.MovementType == StockMovementType.StockTransfer && movement.SourceWarehouseId.HasValue && movement.TargetWarehouseId.HasValue)
+                {
+                    await RemoveStockAsync(movement.ProductId, movement.SourceWarehouseId.Value, movement.Quantity);
+                    await AddStockAsync(movement.ProductId, movement.TargetWarehouseId.Value, movement.Quantity);
+                }
+                
+                _context.StockMovements.Add(movement);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new { message = "Movimiento registrado con éxito", id = movement.Id });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return BadRequest(new { error = ex.Message });
+            }
         }
 
-        // POST: api/StockMovements
-        [HttpPost]
-        public async Task<ActionResult<StockMovement>> PostStockMovement(StockMovement stockMovement)
+        // Métodos auxiliares
+        private async Task AddStockAsync(Guid productId, Guid warehouseId, decimal qty)
         {
-            // 1. Validaciones básicas
-            if (stockMovement.Quantity <= 0) return BadRequest("La cantidad debe ser mayor a 0.");
+            var stock = await _context.ProductStocks
+                .FirstOrDefaultAsync(ps => ps.ProductId == productId && ps.WarehouseId == warehouseId);
 
-            // 2. Guardamos el movimiento en el Historial (El "Papel")
-            _context.StockMovements.Add(stockMovement);
-
-            // 3. Actualizamos el Producto Global (Legacy - para que no se rompa lo viejo)
-            var product = await _context.Products.FindAsync(stockMovement.ProductId);
-            if (product == null) return NotFound("Producto no encontrado");
-
-            // --- 4. LOGÍSTICA AUTOMÁTICA (EL CEREBRO NUEVO) ---
-            
-            // CASO A: ENTRADA DE MERCADERÍA (Compra o Transferencia Entrante)
-            // Si hay un TargetWarehouseId, significa que la mercadería ENTRA a ese depósito.
-            if (stockMovement.TargetWarehouseId.HasValue)
+            if (stock == null)
             {
-                // Buscamos si ya existe registro de este producto en ese depósito
-                var stockEntry = await _context.ProductStocks
-                    .FirstOrDefaultAsync(ps => ps.ProductId == stockMovement.ProductId && ps.WarehouseId == stockMovement.TargetWarehouseId.Value);
-
-                if (stockEntry == null)
-                {
-                    // Si es la primera vez que entra este producto a este depósito, creamos el registro
-                    stockEntry = new ProductStock
-                    {
-                        ProductId = stockMovement.ProductId,
-                        WarehouseId = stockMovement.TargetWarehouseId.Value,
-                        Quantity = 0
-                    };
-                    _context.ProductStocks.Add(stockEntry);
-                }
-
-                // SUMAMOS AL DEPÓSITO DE DESTINO
-                stockEntry.Quantity += stockMovement.Quantity;
-                
-                // Actualizamos precio de costo y stock global (Legacy)
-                if (stockMovement.MovementType == "PURCHASE")
-                {
-                    product.Stock += stockMovement.Quantity;
-                    product.CostPrice = stockMovement.UnitCost; // Actualiza PPP o Último precio
-                }
+                stock = new ProductStock { ProductId = productId, WarehouseId = warehouseId, Quantity = 0 };
+                _context.ProductStocks.Add(stock);
             }
+            stock.Quantity += qty;
+        }
 
-            // CASO B: SALIDA DE MERCADERÍA (Consumo o Transferencia Saliente)
-            // Si hay un SourceWarehouseId, significa que la mercadería SALE de ese depósito.
-            if (stockMovement.SourceWarehouseId.HasValue)
-            {
-                var stockEntry = await _context.ProductStocks
-                    .FirstOrDefaultAsync(ps => ps.ProductId == stockMovement.ProductId && ps.WarehouseId == stockMovement.SourceWarehouseId.Value);
+        private async Task RemoveStockAsync(Guid productId, Guid warehouseId, decimal qty)
+        {
+            var stock = await _context.ProductStocks
+                .FirstOrDefaultAsync(ps => ps.ProductId == productId && ps.WarehouseId == warehouseId);
 
-                if (stockEntry != null)
-                {
-                    // --- VALIDACIÓN DE STOCK (CRÍTICA) ---
-                    if (stockEntry.Quantity < stockMovement.Quantity)
-                    {
-                        return BadRequest($"Stock insuficiente en el depósito de origen. Disponible: {stockEntry.Quantity}");
-                    }
-                    // ------------------------------------
+            if (stock == null || stock.Quantity < qty)
+                throw new Exception("Stock insuficiente en el depósito de origen.");
 
-                    // RESTAMOS DEL DEPÓSITO DE ORIGEN
-                    stockEntry.Quantity -= stockMovement.Quantity;
-                }
-                else
-                {
-                    return BadRequest("El producto no existe en el depósito de origen.");
-                }
-
-                // Restamos del global (Legacy) si es un consumo real (no una transferencia)
-                if (stockMovement.MovementType == "CONSUMPTION" || stockMovement.MovementType == "DISPATCH")
-                {
-                    product.Stock -= stockMovement.Quantity;
-                }
-            }
-
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetStockMovements", new { id = stockMovement.Id }, stockMovement);
+            stock.Quantity -= qty;
         }
     }
 }

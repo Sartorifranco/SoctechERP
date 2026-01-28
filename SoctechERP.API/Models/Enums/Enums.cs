@@ -44,20 +44,9 @@ namespace SoctechERP.API.Models.Enums
         Voided      // 2: Anulado por error administrativo
     }
 
-    public enum StockMovementType
-    {
-        // 📥 ENTRADAS
-        PurchaseReception,   // Ingreso por Compra (Proveedor -> Obra)
-        TransferIn,          // Entrada desde otra Obra
-        AdjustmentIn,        // Sobrante de inventario
-        ReturnFromProject,   // Devolución de materiales sobrantes
-
-        // 📤 SALIDAS
-        ProjectConsumption,  // Consumo en Obra (El Activo se vuelve Costo)
-        TransferOut,         // Salida a otra Obra
-        AdjustmentOut,       // Faltante / Robo
-        ReturnToProvider     // Devolución a proveedor (falla de calidad)
-    }
+    // --- [ELIMINADO] StockMovementType ---
+    // Se eliminó de aquí porque ya existe en su propio archivo 'StockMovementType.cs'.
+    // Esto soluciona el error CS0101.
 
     public enum QualityCondition
     {

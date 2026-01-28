@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SoctechERP.API.Data;
 using SoctechERP.API.Models;
+using SoctechERP.API.Models.Enums; // <--- NECESARIO
 
 namespace SoctechERP.API.Controllers
 {
@@ -47,7 +48,7 @@ namespace SoctechERP.API.Controllers
             return CreatedAtAction(nameof(GetOrder), new { id = order.Id }, order);
         }
 
-        // PUT: RECIBIR MERCADERÍA (Con Bloqueo de Seguridad)
+        // PUT: RECIBIR MERCADERÍA
         [HttpPut("{id}/receive")]
         public async Task<IActionResult> ReceiveOrder(Guid id)
         {
@@ -57,11 +58,9 @@ namespace SoctechERP.API.Controllers
             
             if (order == null) return NotFound("Orden no encontrada.");
 
-            // --- CORRECCIÓN CRÍTICA: EL CANDADO ---
-            // Si ya está "Finished" (cerrada por factura) o "Received" (ya recibida), ERROR.
+            // Validar estado
             if (order.Status == "Received" || order.Status == "Finished") 
-                return BadRequest($"Esta orden ya fue procesada (Estado: {order.Status}). No se puede volver a sumar stock.");
-            // --------------------------------------
+                return BadRequest($"Esta orden ya fue procesada (Estado: {order.Status}).");
 
             if (order.Items == null || !order.Items.Any()) return BadRequest("La orden no tiene ítems.");
 
@@ -73,15 +72,19 @@ namespace SoctechERP.API.Controllers
                 var movement = new StockMovement
                 {
                     ProductId = item.ProductId,
-                    ProjectId = null,
+                    ProjectId = order.ProjectId, // Imputamos a la obra si existe
                     Quantity = (decimal)item.Quantity, 
-                    MovementType = "PURCHASE",
+                    
+                    // CORRECCIÓN: Usamos Enum
+                    MovementType = StockMovementType.PurchaseReception,
+                    
+                    UnitCost = item.UnitPrice,
                     Date = DateTime.UtcNow,
                     Description = $"Recepción OC: {order.OrderNumber}"
                 };
                 _context.StockMovements.Add(movement);
 
-                // 2. Actualizar Stock Físico
+                // 2. Actualizar Stock Físico (Legacy)
                 var product = await _context.Products.FindAsync(item.ProductId);
                 if (product != null)
                 {

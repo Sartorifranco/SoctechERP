@@ -1,7 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema; // <--- ESTA ERA LA LÍNEA QUE FALTABA
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SoctechERP.API.Models
 {
@@ -17,10 +16,12 @@ namespace SoctechERP.API.Models
 
         public DateTime StartDate { get; set; } = DateTime.UtcNow;
         public DateTime? EndDate { get; set; }
+        
+        // Esta era la que faltaba para el error CS1061
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow; 
 
         public bool IsActive { get; set; } = true;
 
-        // Monto Total del Contrato (Ingresos Esperados)
         [Column(TypeName = "decimal(18,2)")]
         public decimal TotalContractAmount { get; set; } = 0;
     }
